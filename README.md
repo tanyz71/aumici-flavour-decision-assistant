@@ -46,15 +46,19 @@ If this is moved into the real POS stack, the likely API surface should include:
 - `POST /api/recommendations/share-event`
 - `GET /api/recommendations/analytics`
 
-## Spreadsheet seeding
+## Spreadsheet usage
 
-The attached `gelato_decision_matrix.xlsx` was translated into:
+The current prototype now works best from live Google Sheets tabs for:
 
-- seed rules in `data.js`
-- mood and occasion starter labels
-- initial flavour direction and topping direction mappings
+- `Flavours`
+- `Toppings`
 
-The spreadsheet logic is not hardcoded permanently into the engine. Instead, it is represented as editable rule records and configurable weights.
+The recommendation flow no longer depends on a `Decision Matrix` tab. Instead, it uses:
+
+- customer free-text answers
+- currently available flavours
+- currently available toppings
+- flavour and topping metadata such as descriptions, tags, type, and recommended pairings
 
 ## What is implemented
 
@@ -64,7 +68,7 @@ The spreadsheet logic is not hardcoded permanently into the engine. Instead, it 
   - I know what I want
   - Guide me to choose
   - Surprise me
-- Transparent scoring engine with score breakdown
+- Availability-based recommendation engine
 - Pricing with topping add-on totals
 - Add-to-cart mock
 - Mood-lift feedback capture
@@ -87,6 +91,25 @@ node server.mjs
 ```
 
 Then open [http://127.0.0.1:8080](http://127.0.0.1:8080).
+
+## Dev-only OpenAI integration
+
+The workbook viewer / wizard can now call the OpenAI API through a local backend route for development use.
+
+Set your API key in the shell before starting the server:
+
+```powershell
+$env:OPENAI_API_KEY="your_api_key_here"
+cd C:\Users\jeffr\Documents\Codex\2026-04-17-ai-gelato-designer
+node server.mjs
+```
+
+Notes:
+
+- this is intended for development, not production
+- the browser never receives the raw API key
+- if `OPENAI_API_KEY` is missing or the API call fails, the app falls back to the local AI-style ranking engine
+- the dev route uses `gpt-5-mini` and asks for 5 structured recommendations based on the current available flavours, toppings, and customer answers only
 
 ## Run the lightweight checks
 

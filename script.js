@@ -1,406 +1,1275 @@
-import { initialState } from "./data.js";
-import { recommendFlavours, summarizeAnalytics } from "./engine.js";
+const GOOGLE_SHEET_ID = "1Ao1cB5x5-d-PZZYORg7MsFDclcu8cQ0dXL18BGhJ8-c";
+const GOOGLE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/edit`;
+const GOOGLE_EMBED_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/preview`;
+const GOOGLE_GVIZ_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq`;
+const SAVED_CREATIONS_KEY = "aumici-saved-creations";
+const FLAVOUR_SHEET_CANDIDATES = ["flavours", "Flavours", "flavor", "Flavor", "flavors", "Flavors", "flavour", "Flavour"];
+const TOPPING_SHEET_CANDIDATES = ["toppings", "Toppings", "topping", "Topping"];
 
-const ADMIN_PASSWORD = "gelato-admin";
-const STATE_STORAGE_KEY = "aumici-flavour-assistant-state";
-const ADMIN_SESSION_KEY = "aumici-flavour-assistant-admin";
-const WIZARD_STORAGE_KEY = "aumici-flavour-assistant-wizard";
+const OCCASIONS = [
+  "Birthday, promotion, team win",
+  "Date night, anniversary, sharing",
+  "Weekend treat, slow afternoon",
+  "Hot afternoon, outdoor event, after lunch",
+  "Bazaar, kiosk, tropical weather",
+  "Work break, study break",
+  "Family outing, rainy day",
+  "Social media dessert, tasting flight",
+  "Corporate event, hotel dessert bar",
+  "Wellness event, daytime dessert",
+  "Chef's table, R&D tasting, workshop",
+  "Birthday party, school event",
+  "Networking, premium client hospitality",
+  "Raya, CNY, Deepavali, Christmas",
+  "Brunch, cafe pairing",
+  "Multi-course meal, wedding dinner"
+];
 
-const state = loadState();
+const MOODS = [
+  "Happy / celebratory",
+  "Romantic / intimate",
+  "Relaxed / peaceful",
+  "Tired / overheated",
+  "Thirsty / heat-stressed",
+  "Stressed / mentally drained",
+  "Comfort / nostalgic",
+  "Playful / adventurous",
+  "Elegant / sophisticated",
+  "Health-conscious / light",
+  "Curious / experimental",
+  "Kids / fun-loving",
+  "Mature / business",
+  "Festive / cultural",
+  "Morning pick-me-up",
+  "Cleanse-the-palate"
+];
 
-let activeMode = "know";
-let editingIds = {
-  flavour: "",
-  mood: "",
-  occasion: "",
-  topping: "",
-  rule: ""
+const TYPE_HINTS = {
+  gelato: ["comfort", "nostalgic", "romantic", "indulgent", "celebration", "birthday", "business", "elegant"],
+  sorbet: ["light", "refreshing", "healthy", "peaceful", "relaxed", "cleanse", "wellness", "fruit"],
+  granita: ["hot", "heat", "thirsty", "outdoor", "tropical", "energising", "afternoon", "cooling"]
 };
-let currentResults = [];
-let currentDebug = [];
-let lastCriteria = {};
-let wizardState = loadWizardState();
 
 const elements = {
-  adminLoginForm: document.querySelector("#adminLoginForm"),
-  adminPassword: document.querySelector("#adminPassword"),
-  adminLogoutButton: document.querySelector("#adminLogoutButton"),
-  adminStatus: document.querySelector("#adminStatus"),
-  adminPanel: document.querySelector("#adminPanel"),
-  adminTabs: Array.from(document.querySelectorAll(".admin-tab")),
-  adminPanels: Array.from(document.querySelectorAll(".admin-tab-panel")),
-  flavourForm: document.querySelector("#flavourForm"),
-  flavourList: document.querySelector("#flavourList"),
-  flavourResetButton: document.querySelector("#flavourResetButton"),
-  moodForm: document.querySelector("#moodForm"),
-  moodList: document.querySelector("#moodList"),
-  occasionForm: document.querySelector("#occasionForm"),
-  occasionList: document.querySelector("#occasionList"),
-  toppingForm: document.querySelector("#toppingForm"),
+  workbookTitle: document.querySelector("#workbookTitle"),
+  workbookPath: document.querySelector("#workbookPath"),
+  openSheetButton: document.querySelector("#openSheetButton"),
+  refreshEmbedButton: document.querySelector("#refreshEmbedButton"),
+  embeddedSheet: document.querySelector("#embeddedSheet"),
+  helpPrompt: document.querySelector("#helpPrompt"),
+  engineModeSwitch: document.querySelector("#engineModeSwitch"),
+  engineModeHint: document.querySelector("#engineModeHint"),
+  startChoices: document.querySelector("#startChoices"),
+  occasionStep: document.querySelector("#occasionStep"),
+  moodStep: document.querySelector("#moodStep"),
+  occasionInput: document.querySelector("#occasionInput"),
+  moodInput: document.querySelector("#moodInput"),
+  occasionOptions: document.querySelector("#occasionOptions"),
+  moodOptions: document.querySelector("#moodOptions"),
+  menuSection: document.querySelector("#menuSection"),
+  menuTabs: document.querySelector("#menuTabs"),
+  menuGrid: document.querySelector("#menuGrid"),
   toppingList: document.querySelector("#toppingList"),
-  ruleForm: document.querySelector("#ruleForm"),
-  ruleList: document.querySelector("#ruleList"),
-  rulePreviewButton: document.querySelector("#rulePreviewButton"),
-  rulePreview: document.querySelector("#rulePreview"),
-  weightsForm: document.querySelector("#weightsForm"),
-  adminAnalyticsGrid: document.querySelector("#adminAnalyticsGrid"),
-  modeButtons: Array.from(document.querySelectorAll(".mode-card")),
-  customerPanels: Array.from(document.querySelectorAll(".customer-panel")),
-  browseForm: document.querySelector("#browseForm"),
-  browseList: document.querySelector("#browseList"),
-  guideForm: document.querySelector("#guideForm"),
-  wizardSteps: Array.from(document.querySelectorAll(".wizard-step")),
-  wizardBackButton: document.querySelector("#wizardBackButton"),
-  wizardNextButton: document.querySelector("#wizardNextButton"),
-  wizardRestartButton: document.querySelector("#wizardRestartButton"),
-  wizardStepLabel: document.querySelector("#wizardStepLabel"),
-  surpriseForm: document.querySelector("#surpriseForm"),
-  resultsSummary: document.querySelector("#resultsSummary"),
-  resultCards: document.querySelector("#resultCards"),
-  rerollButton: document.querySelector("#rerollButton"),
-  askAnotherButton: document.querySelector("#askAnotherButton"),
-  feedbackForm: document.querySelector("#feedbackForm"),
-  shareButton: document.querySelector("#shareButton"),
-  cartStatus: document.querySelector("#cartStatus"),
-  analyticsGrid: document.querySelector("#analyticsGrid"),
-  heroSignature: document.querySelector("#heroSignature"),
-  heroDescription: document.querySelector("#heroDescription"),
-  heroMode: document.querySelector("#heroMode"),
-  heroScore: document.querySelector("#heroScore"),
-  architectureSummary: document.querySelector("#architectureSummary"),
-  rulesSummary: document.querySelector("#rulesSummary")
+  toppingSelectionMeta: document.querySelector("#toppingSelectionMeta"),
+  recommendationSection: document.querySelector("#recommendationSection"),
+  recommendationGrid: document.querySelector("#recommendationGrid"),
+  recommendationLead: document.querySelector("#recommendationLead"),
+  recommendationMeta: document.querySelector("#recommendationMeta"),
+  customerNameInput: document.querySelector("#customerNameInput"),
+  creationNameInput: document.querySelector("#creationNameInput"),
+  saveCreationStatus: document.querySelector("#saveCreationStatus"),
+  savedCreationsList: document.querySelector("#savedCreationsList")
 };
 
-const choiceMaps = {
-  taste: ["creamy", "fruity", "icy", "indulgent", "light", "surprise me"],
-  dietary: ["vegan", "dairy-free", "lactose intolerant friendly", "nut-free", "low added sugar", "contains caffeine", "none"],
-  weather: ["hot day", "rainy day", "anytime"],
-  toppingsWanted: ["yes", "no"]
+const state = {
+  flavours: [],
+  toppings: [],
+  selectedOccasion: "",
+  selectedMood: "",
+  activeMenuType: "gelato",
+  selectedMenuToppings: [],
+  openAiConfigured: false,
+  engineMode: "local",
+  recommendationRequestId: 0,
+  currentRecommendationCards: [],
+  savedCreations: loadSavedCreations()
 };
 
 bootstrap();
 
-function bootstrap() {
-  elements.architectureSummary.textContent =
-    "Frontend stack: plain HTML, CSS, ES modules. Backend: none in this workspace. Persistence: browser localStorage.";
-  elements.rulesSummary.textContent =
-    "Spreadsheet translation: decision matrix rows were converted into editable seeded recommendation rules and examples.";
-
-  bindEvents();
-  renderAll();
-  applyAdminState();
-  renderWizardChoices();
-  showWizardStep(wizardState.step || 1);
-  renderBrowse();
-  runBrowseRecommendations();
+async function bootstrap() {
+  elements.workbookTitle.textContent = "Aumici Ordering Assistant";
+  elements.workbookPath.innerHTML = `Google Sheet: <a href="${GOOGLE_SHEET_URL}" target="_blank" rel="noreferrer">${GOOGLE_SHEET_URL}</a>`;
+  elements.embeddedSheet.src = `${GOOGLE_EMBED_URL}?rm=minimal`;
+  renderChoiceButtons();
+  renderOptionGroup(elements.occasionOptions, OCCASIONS, "occasion");
+  renderOptionGroup(elements.moodOptions, MOODS, "mood");
+  bindBaseActions();
+  bindTextInputs();
+  await hydrateFromGoogleSheet();
+  await hydrateOpenAiStatus();
+  syncEngineModeUi();
+  renderMenu();
 }
 
-function loadState() {
-  try {
-    const raw = window.localStorage.getItem(STATE_STORAGE_KEY);
-    if (!raw) {
-      return structuredClone(initialState);
+function bindBaseActions() {
+  elements.openSheetButton.addEventListener("click", () => {
+    window.open(GOOGLE_SHEET_URL, "_blank", "noopener,noreferrer");
+  });
+
+  elements.menuTabs.querySelectorAll("[data-menu-type]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeMenuType = button.dataset.menuType;
+      renderMenuTabs();
+      renderMenu();
+    });
+  });
+
+  elements.engineModeSwitch.addEventListener("change", () => {
+    state.engineMode = elements.engineModeSwitch.checked && state.openAiConfigured ? "online" : "local";
+    syncEngineModeUi();
+    if (state.selectedOccasion && state.selectedMood) {
+      maybeShowRecommendations();
     }
-    const parsed = JSON.parse(raw);
-    return {
-      ...structuredClone(initialState),
-      ...parsed
-    };
-  } catch {
-    return structuredClone(initialState);
+  });
+
+  elements.refreshEmbedButton.addEventListener("click", async () => {
+    const cacheBust = `ts=${Date.now()}`;
+    elements.embeddedSheet.src = `${GOOGLE_EMBED_URL}?rm=minimal&${cacheBust}`;
+    await hydrateFromGoogleSheet();
+    renderMenu();
+    maybeShowRecommendations();
+  });
+}
+
+function renderChoiceButtons() {
+  elements.startChoices.innerHTML = `
+    <button class="mode-card" data-choice="yes" type="button">
+      <strong>Guide me</strong>
+      <p>Answer two quick questions and get five suggestions picked for you.</p>
+    </button>
+    <button class="mode-card" data-choice="no" type="button">
+      <strong>Browse menu</strong>
+      <p>See what is available right now and choose directly from the live menu.</p>
+    </button>
+  `;
+
+  elements.startChoices.querySelectorAll("[data-choice]").forEach((button) => {
+    button.addEventListener("click", () => handleInitialChoice(button.dataset.choice));
+  });
+}
+
+function renderOptionGroup(container, options, type) {
+  container.innerHTML = options
+    .map(
+      (option) => `
+        <button class="choice-pill" data-${type}="${escapeHtml(option)}" type="button">
+          ${escapeHtml(option)}
+        </button>
+      `
+    )
+    .join("");
+
+  container.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (type === "occasion") {
+        state.selectedOccasion = button.dataset.occasion;
+        state.selectedMood = "";
+        elements.occasionInput.value = state.selectedOccasion;
+        elements.moodInput.value = "";
+        highlightSelected(container, "occasion", state.selectedOccasion);
+        highlightSelected(elements.moodOptions, "mood", "");
+        elements.moodStep.classList.remove("hidden");
+        elements.recommendationSection.classList.add("hidden");
+      } else {
+        state.selectedMood = button.dataset.mood;
+        elements.moodInput.value = state.selectedMood;
+        highlightSelected(container, "mood", state.selectedMood);
+        maybeShowRecommendations();
+      }
+    });
+  });
+}
+
+function bindTextInputs() {
+  elements.occasionInput.addEventListener("input", () => {
+    state.selectedOccasion = elements.occasionInput.value.trim();
+    state.selectedMood = "";
+    elements.moodInput.value = "";
+    highlightSelected(elements.occasionOptions, "occasion", state.selectedOccasion);
+    highlightSelected(elements.moodOptions, "mood", "");
+    elements.moodStep.classList.toggle("hidden", !state.selectedOccasion);
+    elements.recommendationSection.classList.add("hidden");
+  });
+
+  elements.moodInput.addEventListener("input", () => {
+    state.selectedMood = elements.moodInput.value.trim();
+    highlightSelected(elements.moodOptions, "mood", state.selectedMood);
+    maybeShowRecommendations();
+  });
+
+  elements.customerNameInput.addEventListener("input", () => {
+    renderSavedCreations();
+  });
+}
+
+function highlightSelected(container, dataKey, selectedValue) {
+  container.querySelectorAll("button").forEach((button) => {
+    button.classList.toggle("is-selected", button.dataset[dataKey] === selectedValue);
+  });
+}
+
+function handleInitialChoice(choice) {
+  setInitialChoiceState(choice);
+
+  if (choice === "no") {
+    state.activeMenuType = defaultMenuType();
+    elements.menuSection.classList.remove("hidden");
+    elements.occasionStep.classList.add("hidden");
+    elements.moodStep.classList.add("hidden");
+    elements.recommendationSection.classList.add("hidden");
+    elements.helpPrompt.textContent = "Browse the live menu below and pick what sounds best.";
+    renderMenuTabs();
+    renderMenu();
+    return;
   }
+
+  elements.menuSection.classList.add("hidden");
+  elements.recommendationSection.classList.add("hidden");
+  elements.occasionStep.classList.remove("hidden");
+  elements.helpPrompt.textContent = "Tell us the occasion and how you feel, and we will suggest your best matches.";
 }
 
-function saveState() {
-  window.localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(state));
+function setInitialChoiceState(choice) {
+  elements.startChoices.querySelectorAll("[data-choice]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.choice === choice);
+  });
 }
 
-function loadWizardState() {
+async function hydrateFromGoogleSheet() {
   try {
-    const raw = window.localStorage.getItem(WIZARD_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { step: 1, answers: {} };
+    const [flavoursResult, toppingsResult] = await Promise.all([
+      fetchSheetRows(FLAVOUR_SHEET_CANDIDATES),
+      fetchSheetRows(TOPPING_SHEET_CANDIDATES)
+    ]);
+
+    const flavoursRows = flavoursResult.rows;
+    const toppingsRows = toppingsResult.rows;
+
+    state.flavours = flavoursRows.length > 1 ? mapFlavours(flavoursRows) : [];
+    state.toppings = toppingsRows.length > 1 ? mapToppings(toppingsRows) : [];
+  } catch (error) {
+    state.flavours = [];
+    state.toppings = [];
+  }
+}
+
+async function hydrateOpenAiStatus() {
+  try {
+    const response = await fetch("/api/openai-status");
+    if (!response.ok) {
+      syncEngineModeUi();
+      return;
+    }
+    const payload = await response.json();
+    state.openAiConfigured = Boolean(payload.configured);
+    if (state.openAiConfigured) {
+      state.engineMode = "online";
+    } else {
+      state.engineMode = "local";
+    }
+  } catch {}
+  syncEngineModeUi();
+}
+
+function syncEngineModeUi() {
+  const onlineEnabled = state.openAiConfigured;
+  if (!onlineEnabled) {
+    state.engineMode = "local";
+  }
+
+  elements.engineModeSwitch.disabled = !onlineEnabled;
+  elements.engineModeSwitch.checked = onlineEnabled && state.engineMode === "online";
+
+  if (onlineEnabled && state.engineMode === "online") {
+    elements.engineModeHint.textContent = "Online mode is active and uses OpenAI with a local fallback.";
+    return;
+  }
+
+  if (onlineEnabled) {
+    elements.engineModeHint.textContent = "Local mode is active. Switch on Online to use OpenAI-assisted recommendations.";
+    return;
+  }
+
+  elements.engineModeHint.textContent = "Local mode is active. Online mode will appear when the OpenAI API is configured.";
+}
+
+async function fetchSheetRows(candidateNames) {
+  const attempts = [];
+  for (const name of candidateNames) {
+    try {
+      const response = await fetch(`/api/google-sheet?sheet=${encodeURIComponent(name)}`);
+      if (!response.ok) {
+        attempts.push({ sheet: name, status: `http ${response.status}` });
+        continue;
+      }
+      const json = await response.json();
+      const rows = parseGoogleTable(json.table);
+      attempts.push({
+        sheet: name,
+        status: "ok",
+        headerPreview: rows[0] || [],
+        rowCount: Math.max(rows.length - 1, 0)
+      });
+      return {
+        matchedSheet: name,
+        rows,
+        attempts
+      };
+    } catch (error) {
+      attempts.push({ sheet: name, status: `error: ${String(error.message || error)}` });
+    }
+  }
+  return {
+    matchedSheet: "",
+    rows: [],
+    attempts
+  };
+}
+
+function parseGoogleTable(table) {
+  if (!table) {
+    return [];
+  }
+  let headers = (table.cols || []).map((column) => column.label || "");
+  let rows = (table.rows || []).map((row) =>
+    (row.c || []).map((cell) => {
+      if (!cell) {
+        return "";
+      }
+      return cell.f ?? cell.v ?? "";
+    })
+  );
+
+  const hasHeaderLabels = headers.some((header) => String(header || "").trim());
+  if (!hasHeaderLabels && rows.length) {
+    headers = rows[0].map((value) => String(value || "").trim());
+    rows = rows.slice(1);
+  }
+
+  return [headers, ...rows];
+}
+
+function mapFlavours(rows) {
+  const headers = rows[0].map((header) => normalizeKey(header));
+  return rows
+    .slice(1)
+    .filter((row) => row.some((cell) => String(cell || "").trim()))
+    .map((row) => {
+      const item = Object.fromEntries(headers.map((header, index) => [header, String(row[index] || "").trim()]));
+      const fallback = inferFlavourRow(row);
+      return {
+        name: pickValue(item, ["flavourname", "flavorname", "name", "item", "product"]) || fallback.name,
+        type: pickValue(item, ["producttype", "type", "base"]) || fallback.type,
+        price: pickValue(item, ["price", "baseprice", "sellingprice"]) || fallback.price,
+        description: pickValue(item, ["description", "notes"]) || fallback.description,
+        status: pickValue(item, ["status", "availability"]) || fallback.status,
+        toppings: pickValue(item, ["recommendedtoppings", "toppings", "finish"]) || fallback.toppings,
+        tags: splitList(pickValue(item, ["tags", "tasteprofile", "profile", "moodtags", "occasiontags"]) || fallback.tags)
+      };
+    })
+    .filter((item) => item.name);
+}
+
+function mapToppings(rows) {
+  const headers = rows[0].map((header) => normalizeKey(header));
+  return rows
+    .slice(1)
+    .filter((row) => row.some((cell) => String(cell || "").trim()))
+    .map((row) => {
+      const item = Object.fromEntries(headers.map((header, index) => [header, String(row[index] || "").trim()]));
+      const fallback = inferToppingRow(row);
+      return {
+        name: pickValue(item, ["toppingname", "name", "topping", "item"]) || fallback.name,
+        price: pickValue(item, ["price", "priceaddon", "addonprice"]) || fallback.price,
+        status: pickValue(item, ["status", "availability"]) || fallback.status,
+        tags: splitList(pickValue(item, ["compatibilitytags", "tags", "pairswith", "profile"]) || fallback.tags),
+        description: pickValue(item, ["description", "notes"]) || fallback.description
+      };
+    })
+    .filter((item) => item.name);
+}
+
+function inferFlavourRow(row) {
+  const values = row.map((cell) => String(cell || "").trim()).filter(Boolean);
+  const joined = values.join(" | ");
+  const type = values.find((value) => isKnownType(value)) || "";
+  const price = values.find((value) => /^\$?\d+([.,]\d{1,2})?$/.test(value)) || "";
+  const status = values.find((value) => isAvailabilityValue(value)) || "Available";
+  const nameCandidates = values.filter((value) => !isKnownType(value) && !/^\$?\d+([.,]\d{1,2})?$/.test(value) && !isAvailabilityValue(value));
+  const name = nameCandidates[0] || values[0] || "";
+  const description = nameCandidates.slice(1).join(" | ");
+
+  return {
+    name,
+    type,
+    price,
+    status,
+    toppings: "",
+    description: description || joined,
+    tags: ""
+  };
+}
+
+function inferToppingRow(row) {
+  const values = row.map((cell) => String(cell || "").trim()).filter(Boolean);
+  const joined = values.join(" | ");
+  const price = values.find((value) => /^\$?\d+([.,]\d{1,2})?$/.test(value)) || "";
+  const status = values.find((value) => isAvailabilityValue(value)) || "Available";
+  const nameCandidates = values.filter((value) => !/^\$?\d+([.,]\d{1,2})?$/.test(value) && !isAvailabilityValue(value));
+  const name = nameCandidates[0] || values[0] || "";
+  const description = nameCandidates.slice(1).join(" | ");
+
+  return {
+    name,
+    price,
+    status,
+    description: description || joined,
+    tags: ""
+  };
+}
+
+function renderMenu() {
+  const availableItems = state.flavours.filter((item) => isAvailable(item.status));
+  renderToppingPicker();
+
+  if (!availableItems.length) {
+    elements.menuGrid.innerHTML =
+      '<article class="result-card"><p>No flavours are available yet. Add a <strong>Flavours</strong> tab in Google Sheets to drive the menu.</p></article>';
+    return;
+  }
+
+  const itemsForTab = availableItems.filter((item) => normalizeMenuType(item.type) === state.activeMenuType);
+
+  if (!itemsForTab.length) {
+    const title = formatMenuTypeLabel(state.activeMenuType);
+    elements.menuGrid.innerHTML = `<article class="result-card"><p>No ${escapeHtml(title.toLowerCase())} items are available right now.</p></article>`;
+    return;
+  }
+
+  elements.menuGrid.innerHTML = itemsForTab
+    .map(
+      (item) => `
+        <article class="result-card">
+          <div class="result-card-head">
+            <div>
+              <span class="result-label">${escapeHtml(item.type || "Available now")}</span>
+              <h3>${escapeHtml(item.name)}</h3>
+            </div>
+            <span class="score-chip">${escapeHtml(item.price || item.status || "Available")}</span>
+          </div>
+          <p>${escapeHtml(item.description || "Freshly available from the live menu.")}</p>
+          <p><strong>Toppings:</strong> ${escapeHtml(item.toppings || "Ask at counter")}</p>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderToppingPicker() {
+  const availableToppings = state.toppings.filter((item) => isAvailable(item.status));
+
+  if (!availableToppings.length) {
+    elements.toppingSelectionMeta.textContent = "No toppings are available right now.";
+    elements.toppingList.innerHTML = '<div class="result-card"><p>No toppings available.</p></div>';
+    return;
+  }
+
+  elements.toppingSelectionMeta.textContent = state.selectedMenuToppings.length
+    ? `${state.selectedMenuToppings.length} topping${state.selectedMenuToppings.length > 1 ? "s" : ""} selected.`
+    : "Choose toppings to go with your dessert.";
+
+  elements.toppingList.innerHTML = availableToppings
+    .map((item) => {
+      const isSelected = state.selectedMenuToppings.includes(item.name);
+      return `
+        <button class="topping-choice ${isSelected ? "is-selected" : ""}" data-topping-name="${escapeHtml(item.name)}" type="button">
+          <span class="topping-choice-head">
+            <strong>${escapeHtml(item.name)}</strong>
+            <span>${escapeHtml(item.price || "Included")}</span>
+          </span>
+          <span class="topping-choice-copy">${escapeHtml(item.description || "Available topping")}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  elements.toppingList.querySelectorAll("[data-topping-name]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleMenuTopping(button.dataset.toppingName);
+    });
+  });
+}
+
+function toggleMenuTopping(name) {
+  if (state.selectedMenuToppings.includes(name)) {
+    state.selectedMenuToppings = state.selectedMenuToppings.filter((item) => item !== name);
+  } else {
+    state.selectedMenuToppings = [...state.selectedMenuToppings, name];
+  }
+
+  renderToppingPicker();
+}
+
+function renderMenuTabs() {
+  elements.menuTabs.querySelectorAll("[data-menu-type]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.menuType === state.activeMenuType);
+  });
+}
+
+function defaultMenuType() {
+  const availableTypes = state.flavours
+    .filter((item) => isAvailable(item.status))
+    .map((item) => normalizeMenuType(item.type));
+
+  if (availableTypes.includes("gelato")) {
+    return "gelato";
+  }
+  if (availableTypes.includes("sorbet")) {
+    return "sorbet";
+  }
+  if (availableTypes.includes("granita")) {
+    return "granita";
+  }
+  return "gelato";
+}
+
+function normalizeMenuType(value) {
+  const normalized = normalizeKey(value);
+  if (normalized.includes("sorbet")) {
+    return "sorbet";
+  }
+  if (normalized.includes("granita")) {
+    return "granita";
+  }
+  return "gelato";
+}
+
+function formatMenuTypeLabel(type) {
+  if (type === "sorbet") {
+    return "Sorbet";
+  }
+  if (type === "granita") {
+    return "Granita";
+  }
+  return "Gelato";
+}
+
+async function maybeShowRecommendations() {
+  if (!state.selectedOccasion || !state.selectedMood) {
+    return;
+  }
+
+  const requestId = ++state.recommendationRequestId;
+  const availableFlavours = state.flavours.filter((item) => isAvailable(item.status));
+  const availableToppings = state.toppings.filter((item) => isAvailable(item.status));
+
+  if (!availableFlavours.length) {
+    elements.recommendationSection.classList.remove("hidden");
+    elements.recommendationLead.textContent = "No available flavours were found.";
+    elements.recommendationMeta.textContent = "Populate the Google Sheets Flavours tab to let the wizard recommend items.";
+    elements.recommendationGrid.innerHTML = "";
+    return;
+  }
+
+  elements.recommendationSection.classList.remove("hidden");
+  elements.recommendationLead.textContent = `Finding five options for ${state.selectedMood} during ${state.selectedOccasion}...`;
+  elements.recommendationMeta.textContent =
+    state.engineMode === "online" && state.openAiConfigured
+      ? "Using online OpenAI mode with a local availability-based fallback."
+      : "Using local availability-based ranking.";
+
+  const localChoices = rankAvailableFlavours(state.selectedOccasion, state.selectedMood, availableFlavours, availableToppings);
+  let cards = [];
+
+  if (state.engineMode === "online" && state.openAiConfigured) {
+    try {
+      cards = await fetchOpenAiRecommendations();
+    } catch {
+      elements.recommendationMeta.textContent =
+        "Online mode was unavailable, so the app switched to the local availability-based engine.";
+    }
+  }
+
+  if (!cards.length) {
+    cards = localChoices.map((choice, index) => ({
+      rank: index + 1,
+      name: choice.label,
+      type: choice.typeLabel || choice.flavour.type || "Suggested",
+      price: choice.basePriceLabel || choice.flavour.price || "See live menu",
+      toppingPrice: formatPriceTotal(choice.toppings),
+      totalPrice: choice.totalPriceLabel || formatCombinedPrice(choice.flavour.price, choice.toppings),
+      description: choice.reason,
+      toppings: choice.toppings.map((item) => item.name).join(", ") || choice.flavour.toppings || "Ask at counter"
+    }));
+  }
+
+  cards = ensureComboOption(cards, localChoices);
+
+  if (requestId !== state.recommendationRequestId) {
+    return;
+  }
+
+  elements.recommendationLead.textContent = `Here are five suggestions for ${state.selectedMood} during ${state.selectedOccasion}.`;
+  if (!elements.recommendationMeta.textContent.includes("online OpenAI mode")) {
+    elements.recommendationMeta.textContent =
+      "The assistant is ranking only the currently available flavours and toppings, using your two text answers and live menu metadata.";
+  }
+  state.currentRecommendationCards = cards;
+  elements.recommendationGrid.innerHTML = cards
+    .map(
+      (item, index) => `
+        <article class="result-card ${item.rank === 1 ? "is-top" : ""}">
+          <div class="result-card-head">
+            <div>
+              <span class="result-label">${item.rank === 1 ? "Suggested option" : `Option ${item.rank}`}</span>
+              <h3>${escapeHtml(item.name)}</h3>
+            </div>
+            <span class="score-chip">${escapeHtml(item.type || "Suggested")}</span>
+          </div>
+          <p>${escapeHtml(item.description)}</p>
+          <p><strong>Toppings / finish:</strong> ${escapeHtml(item.toppings || "Ask at counter")}</p>
+          <p class="price-line">Base price: ${escapeHtml(item.price || "See live menu for pricing")}</p>
+          <p class="price-line">Topping add-on: ${escapeHtml(item.toppingPrice || "Included / not priced")}</p>
+          <p class="price-line">Total: ${escapeHtml(item.totalPrice || item.price || "See live menu for pricing")}</p>
+          <div class="cta-row">
+            <button class="primary-button save-creation-button" data-save-index="${index}" type="button">Save creation</button>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+  bindSaveCreationButtons();
+  renderSavedCreations();
+}
+
+function bindSaveCreationButtons() {
+  elements.recommendationGrid.querySelectorAll("[data-save-index]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number.parseInt(button.dataset.saveIndex || "", 10);
+      saveCurrentCreation(index);
+    });
+  });
+}
+
+function saveCurrentCreation(index) {
+  const customerName = elements.customerNameInput.value.trim();
+  if (!customerName) {
+    elements.saveCreationStatus.textContent = "Enter your name first so this browser can remember your creation.";
+    elements.customerNameInput.focus();
+    return;
+  }
+
+  const card = state.currentRecommendationCards[index];
+  if (!card) {
+    elements.saveCreationStatus.textContent = "That recommendation could not be saved. Please try again.";
+    return;
+  }
+
+  const creationName = elements.creationNameInput.value.trim() || `${card.name} favourite`;
+  const record = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    customerName,
+    creationName,
+    dessertName: card.name,
+    type: card.type || "Suggested",
+    toppings: card.toppings || "Ask at counter",
+    totalPrice: card.totalPrice || card.price || "See live menu",
+    savedAt: new Date().toISOString()
+  };
+
+  state.savedCreations = [record, ...state.savedCreations].slice(0, 50);
+  persistSavedCreations();
+  elements.creationNameInput.value = "";
+  elements.saveCreationStatus.textContent = `Saved "${creationName}" for ${customerName}.`;
+  renderSavedCreations();
+}
+
+function renderSavedCreations() {
+  const customerName = elements.customerNameInput.value.trim();
+  if (!customerName) {
+    elements.savedCreationsList.innerHTML =
+      '<article class="result-card"><p>Enter your name above to see and save your creations on this browser.</p></article>';
+    return;
+  }
+
+  const items = state.savedCreations.filter((item) => normalizeKey(item.customerName) === normalizeKey(customerName));
+  if (!items.length) {
+    elements.savedCreationsList.innerHTML =
+      '<article class="result-card"><p>No saved creations yet for this name. Save one from the recommendations above.</p></article>';
+    return;
+  }
+
+  elements.savedCreationsList.innerHTML = items
+    .map(
+      (item) => `
+        <article class="result-card">
+          <div class="result-card-head">
+            <div>
+              <span class="result-label">Saved creation</span>
+              <h3>${escapeHtml(item.creationName)}</h3>
+            </div>
+            <span class="score-chip">${escapeHtml(item.type)}</span>
+          </div>
+          <p><strong>Base:</strong> ${escapeHtml(item.dessertName)}</p>
+          <p><strong>Toppings:</strong> ${escapeHtml(item.toppings)}</p>
+          <p class="price-line">Saved total: ${escapeHtml(item.totalPrice)}</p>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function loadSavedCreations() {
+  try {
+    const raw = window.localStorage.getItem(SAVED_CREATIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return { step: 1, answers: {} };
+    return [];
   }
 }
 
-function saveWizardState() {
-  window.localStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(wizardState));
+function persistSavedCreations() {
+  try {
+    window.localStorage.setItem(SAVED_CREATIONS_KEY, JSON.stringify(state.savedCreations));
+  } catch {}
 }
 
-function isAdminLoggedIn() {
-  return window.localStorage.getItem(ADMIN_SESSION_KEY) === "true";
-}
-
-function setAdminSession(enabled) {
-  window.localStorage.setItem(ADMIN_SESSION_KEY, enabled ? "true" : "false");
-}
-
-function bindEvents() {
-  elements.adminLoginForm.addEventListener("submit", handleAdminLogin);
-  elements.adminLogoutButton.addEventListener("click", () => {
-    setAdminSession(false);
-    applyAdminState();
+async function fetchOpenAiRecommendations() {
+  const response = await fetch("/api/recommendations-dev", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      occasion: state.selectedOccasion,
+      mood: state.selectedMood,
+      flavours: state.flavours,
+      toppings: state.toppings
+    })
   });
 
-  elements.adminTabs.forEach((button) => {
-    button.addEventListener("click", () => showAdminTab(button.dataset.adminTab));
-  });
-
-  elements.flavourForm.addEventListener("submit", handleFlavourSave);
-  elements.moodForm.addEventListener("submit", handleMoodSave);
-  elements.occasionForm.addEventListener("submit", handleOccasionSave);
-  elements.toppingForm.addEventListener("submit", handleToppingSave);
-  elements.ruleForm.addEventListener("submit", handleRuleSave);
-  elements.weightsForm.addEventListener("submit", handleWeightsSave);
-  elements.flavourResetButton.addEventListener("click", resetFlavourForm);
-  elements.rulePreviewButton.addEventListener("click", renderRulePreview);
-
-  elements.modeButtons.forEach((button) => {
-    button.addEventListener("click", () => setMode(button.dataset.mode));
-  });
-
-  elements.browseForm.addEventListener("change", renderBrowse);
-  elements.wizardBackButton.addEventListener("click", handleWizardBack);
-  elements.wizardNextButton.addEventListener("click", handleWizardNext);
-  elements.wizardRestartButton.addEventListener("click", resetWizard);
-  elements.guideForm.querySelectorAll(".skip-button").forEach((button) => {
-    button.addEventListener("click", () => skipWizardField(button.dataset.skip));
-  });
-  elements.surpriseForm.addEventListener("submit", handleSurpriseRun);
-  elements.rerollButton.addEventListener("click", rerollCurrentMode);
-  elements.askAnotherButton.addEventListener("click", resetWizard);
-  elements.feedbackForm.addEventListener("submit", handleFeedbackSubmit);
-  elements.shareButton.addEventListener("click", handleShare);
-}
-
-function applyAdminState() {
-  const loggedIn = isAdminLoggedIn();
-  elements.adminPanel.classList.toggle("hidden", !loggedIn);
-  elements.adminLogoutButton.classList.toggle("hidden", !loggedIn);
-  elements.adminPassword.classList.toggle("hidden", loggedIn);
-  elements.adminLoginForm.querySelector('button[type="submit"]').classList.toggle("hidden", loggedIn);
-  elements.adminStatus.textContent = loggedIn
-    ? "Admin panel unlocked. This prototype persists config in the current browser."
-    : "Admin panel locked.";
-}
-
-function showAdminTab(tabName) {
-  elements.adminTabs.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.adminTab === tabName);
-  });
-  elements.adminPanels.forEach((panel) => {
-    panel.classList.toggle("hidden", panel.dataset.adminPanel !== tabName);
-  });
-}
-
-function setMode(mode) {
-  activeMode = mode;
-  elements.modeButtons.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.mode === mode);
-  });
-  elements.customerPanels.forEach((panel) => {
-    panel.classList.toggle("hidden", panel.dataset.customerPanel !== mode);
-  });
-  elements.heroMode.textContent = mode === "know" ? "I know what I want" : mode === "guide" ? "Guide me to choose" : "Surprise me";
-  if (mode === "know") {
-    runBrowseRecommendations();
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || payload.error || `Recommendation request failed with ${response.status}`);
   }
+
+  const payload = await response.json();
+  const recommendations = Array.isArray(payload.recommendations) ? payload.recommendations.slice(0, 5) : [];
+
+  return recommendations.map((item, index) => {
+    const parsedFlavourName = stripQualifier(item.flavour);
+    const inferredType = extractTypeFromLabel(item.flavour);
+    const menuItem = findFlavour(item.flavour);
+    const toppingItems = Array.isArray(item.toppings) ? item.toppings.map(findTopping).filter(Boolean) : [];
+    return {
+      rank: index + 1,
+      name: menuItem?.name || parsedFlavourName || item.flavour || `Option ${index + 1}`,
+      type: menuItem?.type || inferredType || "Suggested",
+      price: menuItem?.price || "See live menu",
+      toppingPrice: formatPriceTotal(toppingItems),
+      totalPrice: formatCombinedPrice(menuItem?.price, toppingItems),
+      description: item.reason || menuItem?.description || "Recommended by the OpenAI dev route.",
+      toppings: Array.isArray(item.toppings) ? item.toppings.join(", ") : menuItem?.toppings || "Ask at counter"
+    };
+  });
 }
 
-function renderAll() {
-  renderFlavourList();
-  renderMoodList();
-  renderOccasionList();
-  renderToppingList();
-  renderRuleList();
-  renderWeights();
-  renderAdminAnalytics();
-  renderPublicAnalytics();
+function ensureComboOption(cards, localChoices) {
+  const normalizedCards = cards.map((item, index) => ({ ...item, rank: index + 1 }));
+  const hasCombo = normalizedCards.some((item) => normalizeKey(item.type || "").includes("gelatosorbet"));
+  if (hasCombo) {
+    return normalizedCards.slice(0, 5);
+  }
+
+  const comboChoice = localChoices.find((choice) => normalizeKey(choice.typeLabel || "").includes("gelatosorbet"));
+  if (!comboChoice) {
+    return normalizedCards.slice(0, 5);
+  }
+
+  const comboCard = {
+    name: comboChoice.label,
+    type: comboChoice.typeLabel || "Gelato + Sorbet",
+    price: comboChoice.basePriceLabel || "See live menu",
+    toppingPrice: formatPriceTotal(comboChoice.toppings),
+    totalPrice:
+      comboChoice.totalPriceLabel ||
+      formatComboTotalPrice(comboChoice.flavour.price, comboChoice.secondaryFlavour?.price, comboChoice.toppings),
+    description: comboChoice.reason,
+    toppings: comboChoice.toppings.map((item) => item.name).join(", ") || "Ask at counter"
+  };
+
+  const nextCards = normalizedCards.length
+    ? [normalizedCards[0], comboCard, ...normalizedCards.slice(1)].filter(Boolean).slice(0, 5)
+    : [comboCard];
+
+  return nextCards.map((item, index) => ({ ...item, rank: index + 1 }));
 }
 
-function parseTags(value) {
+function rankAvailableFlavours(selectedOccasion, selectedMood, availableFlavours, availableToppings) {
+  const queryTokens = tokenize(`${selectedOccasion} ${selectedMood}`);
+  const preferredTypes = inferPreferredTypes(selectedOccasion, selectedMood);
+  const wantsCooling = containsAny(`${selectedOccasion} ${selectedMood}`, [
+    "tired",
+    "overheated",
+    "hot",
+    "thirsty",
+    "refreshing",
+    "light",
+    "cool",
+    "summer"
+  ]);
+  const wantsPremium = containsAny(selectedOccasion, [
+    "networking",
+    "premium",
+    "client",
+    "hospitality",
+    "corporate",
+    "business"
+  ]);
+
+  const rankedSingles = availableFlavours
+    .map((flavour) => {
+      const searchable = [flavour.name, flavour.type, flavour.description, flavour.toppings, ...(flavour.tags || [])].join(" ");
+      let score = countKeywordMatches(searchable, queryTokens) * 3;
+
+      if (preferredTypes.length && preferredTypes.includes(normalizeKey(flavour.type))) {
+        score += 8;
+      }
+
+      if (containsAny(searchable, ["premium", "luxury", "elegant", "indulgent"])) {
+        score += wantsPremium ? 4 : 0;
+      }
+
+      if (containsAny(searchable, ["light", "refresh", "fruit", "citrus", "mint", "yuzu", "watermelon"])) {
+        score += containsAny(selectedMood, ["light", "refresh", "hot", "overheated", "thirsty", "cleanse", "peaceful"]) ? 4 : 0;
+      }
+
+      if (containsAny(searchable, ["coffee", "chocolate", "caramel", "cookies", "hazelnut"])) {
+        score += containsAny(selectedMood, ["stressed", "drained", "comfort", "business", "morning"]) ? 4 : 0;
+      }
+
+      if (wantsCooling && containsAny(searchable, ["coffee", "tiramisu", "hazelnut", "caramel", "chocolate", "cookies"])) {
+        score -= 5;
+      }
+
+      if (wantsCooling && containsAny(searchable, ["almond", "nut", "praline", "brownie", "toffee"])) {
+        score -= 7;
+      }
+
+      if (wantsPremium && containsAny(searchable, ["mint", "lemon", "yuzu", "blood orange", "citrus", "lychee", "watermelon", "passion fruit"])) {
+        score += 2;
+      }
+
+      const toppings = rankAvailableToppings(flavour, availableToppings, queryTokens).slice(0, 3);
+      score += toppings.length;
+
+      return {
+        flavour,
+        label: flavour.name,
+        typeLabel: flavour.type || "Suggested",
+        basePriceLabel: flavour.price || "See live menu",
+        score,
+        toppings,
+        reason: buildLocalReason(flavour, selectedOccasion, selectedMood, toppings)
+      };
+    })
+    .sort((left, right) => right.score - left.score);
+
+  const comboChoices = buildComboChoices(rankedSingles, availableToppings, selectedOccasion, selectedMood, queryTokens);
+  const combined = [...rankedSingles, ...comboChoices].sort((left, right) => right.score - left.score);
+
+  return diversifyChoices(combined).slice(0, 5);
+}
+
+function rankAvailableToppings(flavour, availableToppings, queryTokens) {
+  const flavourText = [flavour.name, flavour.description, flavour.toppings, ...(flavour.tags || [])].join(" ");
+  const requestText = queryTokens.join(" ");
+  const wantsCooling = containsAny(requestText, ["tired", "overheated", "hot", "thirsty", "refreshing", "light", "cool"]);
+  const wantsPremium = containsAny(requestText, ["networking", "premium", "client", "hospitality", "corporate", "business"]);
+
+  return availableToppings
+    .map((topping) => {
+      const toppingText = [topping.name, topping.description, ...(topping.tags || [])].join(" ");
+      let score = countKeywordMatches(toppingText, queryTokens) * 2;
+
+      if (containsAny(`${flavourText} ${toppingText}`, tokenize(flavour.name))) {
+        score += 1;
+      }
+
+      if (flavour.toppings && normalizeKey(flavour.toppings).includes(normalizeKey(topping.name))) {
+        score += 5;
+      }
+
+      if (wantsCooling && containsAny(toppingText, ["pistachio", "hazelnut", "almond", "brownie", "cookie", "caramel", "nuts"])) {
+        score -= 6;
+      }
+
+      if (wantsCooling && containsAny(toppingText, ["mint", "citrus", "zest", "berries", "fruit", "light"])) {
+        score += 5;
+      }
+
+      if (wantsPremium && containsAny(toppingText, ["candied", "citrus", "zest", "mint", "peel", "cacao", "nibs", "pistachio dust"])) {
+        score += 3;
+      }
+
+      if (containsAny(flavourText, ["mint", "lemon", "yuzu", "citrus", "watermelon", "passion"])) {
+        if (containsAny(toppingText, ["mint", "zest", "berries", "fruit", "citrus"])) {
+          score += 3;
+        }
+        if (containsAny(toppingText, ["hazelnut", "pistachio", "almond", "brownie", "cookie"])) {
+          score -= 4;
+        }
+      }
+
+      return { ...topping, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score);
+}
+
+function inferPreferredTypes(selectedOccasion, selectedMood) {
+  const text = normalizeKey(`${selectedOccasion} ${selectedMood}`);
+  const scores = { gelato: 0, sorbet: 0, granita: 0 };
+
+  Object.entries(TYPE_HINTS).forEach(([type, hints]) => {
+    hints.forEach((hint) => {
+      if (text.includes(normalizeKey(hint))) {
+        scores[type] += 1;
+      }
+    });
+  });
+
+  return Object.entries(scores)
+    .filter(([, score]) => score > 0)
+    .sort((left, right) => right[1] - left[1])
+    .map(([type]) => type);
+}
+
+function buildLocalReason(flavour, selectedOccasion, selectedMood, toppings) {
+  const flavourText = [flavour.name, flavour.description, ...(flavour.tags || [])].join(" ");
+  let typeNote = flavour.type ? `${flavour.type} matches the tone of this request.` : "This flavour fits the request well.";
+
+  if (containsAny(`${selectedOccasion} ${selectedMood}`, ["tired", "overheated", "thirsty", "light", "refreshing"]) &&
+    containsAny(flavourText, ["mint", "lemon", "yuzu", "watermelon", "passion", "citrus", "fruit"])) {
+    typeNote = `${flavour.name} feels cooling and lighter for this request.`;
+  }
+
+  if (containsAny(selectedOccasion, ["networking", "premium", "client", "hospitality", "corporate"]) &&
+    containsAny(flavourText, ["citrus", "yuzu", "mint", "blood orange", "lychee", "pistachio", "coffee"])) {
+    typeNote = `${flavour.name} keeps the profile polished for a premium setting.`;
+  }
+
+  const toppingNote = toppings.length ? ` Best paired with ${toppings.map((item) => item.name).join(", ")}.` : "";
+  const context = `${selectedMood} for ${selectedOccasion}`;
+  return `${typeNote} It suits ${context}.${toppingNote}`;
+}
+
+function buildComboChoices(rankedSingles, availableToppings, selectedOccasion, selectedMood, queryTokens) {
+  const gelatoChoices = rankedSingles.filter((choice) => normalizeKey(choice.flavour.type).includes("gelato")).slice(0, 4);
+  const sorbetChoices = rankedSingles.filter((choice) => normalizeKey(choice.flavour.type).includes("sorbet")).slice(0, 4);
+  const wantsMix =
+    containsAny(`${selectedOccasion} ${selectedMood}`, [
+      "mix",
+      "pair",
+      "contrast",
+      "share",
+      "premium",
+      "client",
+      "networking",
+      "celebration",
+      "playful"
+    ]) || (gelatoChoices.length && sorbetChoices.length);
+
+  if (!wantsMix) {
+    return [];
+  }
+
+  const combos = [];
+
+  gelatoChoices.forEach((gelatoChoice) => {
+    sorbetChoices.forEach((sorbetChoice) => {
+      const comboName = `${gelatoChoice.flavour.name} + ${sorbetChoice.flavour.name}`;
+      const comboText = [
+        gelatoChoice.flavour.name,
+        gelatoChoice.flavour.description,
+        sorbetChoice.flavour.name,
+        sorbetChoice.flavour.description
+      ].join(" ");
+      let score = gelatoChoice.score + sorbetChoice.score + countKeywordMatches(comboText, queryTokens);
+      score += 4;
+
+      const comboToppings = rankAvailableToppings(
+        {
+          name: comboName,
+          description: `${gelatoChoice.flavour.description} ${sorbetChoice.flavour.description}`.trim(),
+          toppings: `${gelatoChoice.flavour.toppings || ""}, ${sorbetChoice.flavour.toppings || ""}`,
+          tags: [...(gelatoChoice.flavour.tags || []), ...(sorbetChoice.flavour.tags || [])]
+        },
+        availableToppings,
+        queryTokens
+      ).slice(0, 3);
+
+      combos.push({
+        flavour: gelatoChoice.flavour,
+        secondaryFlavour: sorbetChoice.flavour,
+        label: comboName,
+        typeLabel: "Gelato + Sorbet",
+        basePriceLabel: formatComboBasePrice(gelatoChoice.flavour.price, sorbetChoice.flavour.price),
+        totalPriceLabel: formatComboTotalPrice(gelatoChoice.flavour.price, sorbetChoice.flavour.price, comboToppings),
+        score,
+        toppings: comboToppings,
+        reason: buildComboReason(gelatoChoice.flavour, sorbetChoice.flavour, selectedOccasion, selectedMood, comboToppings)
+      });
+    });
+  });
+
+  return combos.sort((left, right) => right.score - left.score).slice(0, 4);
+}
+
+function diversifyChoices(choices) {
+  const selected = [];
+  const usedTypes = new Map();
+  const usedToppingNames = new Set();
+
+  for (const choice of choices) {
+    const type = normalizeKey(choice.typeLabel || choice.flavour.type || "mixed");
+    const usedCount = usedTypes.get(type) || 0;
+    if (usedCount >= 3 && choices.length > selected.length) {
+      continue;
+    }
+    const adjustedChoice = {
+      ...choice,
+      toppings: diversifyChoiceToppings(choice.toppings, usedToppingNames)
+    };
+    adjustedChoice.toppings.forEach((item) => usedToppingNames.add(normalizeKey(item.name)));
+    selected.push(adjustedChoice);
+    usedTypes.set(type, usedCount + 1);
+    if (selected.length >= 5) {
+      break;
+    }
+  }
+
+  if (selected.length < 5) {
+    for (const choice of choices) {
+      if (selected.some((item) => item.flavour.name === choice.flavour.name)) {
+        continue;
+      }
+      const adjustedChoice = {
+        ...choice,
+        toppings: diversifyChoiceToppings(choice.toppings, usedToppingNames)
+      };
+      adjustedChoice.toppings.forEach((item) => usedToppingNames.add(normalizeKey(item.name)));
+      selected.push(adjustedChoice);
+      if (selected.length >= 5) {
+        break;
+      }
+    }
+  }
+
+  return selected;
+}
+
+function diversifyChoiceToppings(toppings, usedToppingNames) {
+  const unique = [];
+
+  for (const topping of toppings) {
+    const key = normalizeKey(topping.name);
+    if (!usedToppingNames.has(key)) {
+      unique.push(topping);
+    }
+    if (unique.length >= 3) {
+      return unique;
+    }
+  }
+
+  for (const topping of toppings) {
+    if (unique.some((item) => normalizeKey(item.name) === normalizeKey(topping.name))) {
+      continue;
+    }
+    unique.push(topping);
+    if (unique.length >= 3) {
+      break;
+    }
+  }
+
+  return unique;
+}
+
+function containsAny(text, hints) {
+  const source = normalizeKey(Array.isArray(text) ? text.join(" ") : text);
+  return hints.some((hint) => source.includes(normalizeKey(hint)));
+}
+
+function findFlavour(name) {
+  const target = normalizeKey(name);
+  const plainTarget = normalizeKey(stripQualifier(name));
+  return (
+    state.flavours.find((item) => normalizeKey(item.name) === target) ||
+    state.flavours.find((item) => normalizeKey(item.name) === plainTarget) ||
+    state.flavours.find((item) => target && normalizeKey(item.name).includes(target)) ||
+    state.flavours.find((item) => plainTarget && normalizeKey(item.name).includes(plainTarget))
+  );
+}
+
+function buildComboReason(gelatoFlavour, sorbetFlavour, selectedOccasion, selectedMood, toppings) {
+  const toppingNote = toppings.length ? ` Best paired with ${toppings.map((item) => item.name).join(", ")}.` : "";
+  return `${gelatoFlavour.name} adds body while ${sorbetFlavour.name} keeps the finish bright and refreshing. It suits ${selectedMood} for ${selectedOccasion}.${toppingNote}`;
+}
+
+function findTopping(name) {
+  const target = normalizeKey(name);
+  return state.toppings.find((item) => normalizeKey(item.name) === target) || state.toppings.find((item) => normalizeKey(item.name).includes(target));
+}
+
+function stripQualifier(value) {
   return String(value || "")
-    .split(",")
-    .map((part) => part.trim())
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/\s*-\s*(gelato|sorbet|granita)\s*$/i, "")
+    .trim();
+}
+
+function extractTypeFromLabel(value) {
+  const text = String(value || "").toLowerCase();
+  if (text.includes("gelato")) {
+    return "Gelato";
+  }
+  if (text.includes("sorbet")) {
+    return "Sorbet";
+  }
+  if (text.includes("granita")) {
+    return "Granita";
+  }
+  return "";
+}
+
+function parseNumericPrice(value) {
+  const cleaned = String(value || "").replace(/[^0-9.]/g, "");
+  const numeric = Number.parseFloat(cleaned);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function formatCurrency(value) {
+  return Number.isFinite(value) ? value.toFixed(2).replace(/\.00$/, "") : "";
+}
+
+function formatPriceTotal(toppings) {
+  const total = toppings.reduce((sum, item) => sum + (parseNumericPrice(item.price) || 0), 0);
+  return total > 0 ? formatCurrency(total) : "";
+}
+
+function formatCombinedPrice(basePrice, toppings) {
+  const base = parseNumericPrice(basePrice);
+  const toppingTotal = toppings.reduce((sum, item) => sum + (parseNumericPrice(item.price) || 0), 0);
+  if (base === null) {
+    return toppingTotal > 0 ? `Toppings +${formatCurrency(toppingTotal)}` : "";
+  }
+  return formatCurrency(base + toppingTotal);
+}
+
+function formatComboBasePrice(firstPrice, secondPrice) {
+  const first = parseNumericPrice(firstPrice);
+  const second = parseNumericPrice(secondPrice);
+  if (first === null && second === null) {
+    return "See live menu";
+  }
+  const total = (first || 0) + (second || 0);
+  return formatCurrency(total);
+}
+
+function formatComboTotalPrice(firstPrice, secondPrice, toppings) {
+  const first = parseNumericPrice(firstPrice);
+  const second = parseNumericPrice(secondPrice);
+  const toppingTotal = toppings.reduce((sum, item) => sum + (parseNumericPrice(item.price) || 0), 0);
+  if (first === null && second === null) {
+    return toppingTotal > 0 ? `Toppings +${formatCurrency(toppingTotal)}` : "";
+  }
+  return formatCurrency((first || 0) + (second || 0) + toppingTotal);
+}
+
+function countKeywordMatches(text, tokens) {
+  const haystack = normalizeKey(text);
+  return tokens.filter((token) => haystack.includes(normalizeKey(token))).length;
+}
+
+function tokenize(value) {
+  return String(value || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
     .filter(Boolean);
 }
 
-function slugify(value) {
+function isAvailable(status) {
+  const value = normalizeKey(status || "available");
+  if (!value) {
+    return true;
+  }
+
+  const availableHints = [
+    "available",
+    "active",
+    "instock",
+    "stock",
+    "yes",
+    "y",
+    "true",
+    "1",
+    "open",
+    "ready",
+    "live"
+  ];
+
+  const unavailableHints = ["soldout", "inactive", "no", "n", "false", "0", "outofstock", "unavailable"];
+
+  if (unavailableHints.some((hint) => value === hint || value.includes(hint))) {
+    return false;
+  }
+
+  return availableHints.some((hint) => value === hint || value.includes(hint));
+}
+
+function isAvailabilityValue(value) {
+  const normalized = normalizeKey(value);
+  return ["available", "active", "instock", "soldout", "inactive"].some((token) => normalized.includes(token));
+}
+
+function isKnownType(value) {
+  const normalized = normalizeKey(value);
+  return ["gelato", "sorbet", "granita"].some((token) => normalized.includes(token));
+}
+
+function pickValue(item, keys) {
+  for (const key of keys) {
+    if (item[key]) {
+      return item[key];
+    }
+  }
+  return "";
+}
+
+function splitList(value) {
+  return String(value || "")
+    .split(/[;,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeKey(value) {
   return String(value || "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
-function handleAdminLogin(event) {
-  event.preventDefault();
-  if (elements.adminPassword.value === ADMIN_PASSWORD) {
-    setAdminSession(true);
-    elements.adminPassword.value = "";
-    applyAdminState();
-    showAdminTab("flavours");
-  } else {
-    elements.adminStatus.textContent = "Incorrect password.";
-  }
-}
-
-function handleFlavourSave(event) {
-  event.preventDefault();
-  const form = new FormData(elements.flavourForm);
-  const payload = {
-    id: editingIds.flavour || slugify(form.get("flavourName")),
-    flavourName: form.get("flavourName"),
-    productType: form.get("flavourType"),
-    status: form.get("flavourStatus"),
-    description: form.get("flavourDescription"),
-    image: form.get("flavourImage"),
-    activeImage: form.get("flavourImage"),
-    baseTasteTags: parseTags(form.get("flavourTasteTags")),
-    dietaryTags: parseTags(form.get("flavourDietaryTags")),
-    moodTags: [],
-    occasionTags: [],
-    weatherSuitability: ["anytime"],
-    recommendedToppings: [],
-    basePrice: Number(form.get("flavourPrice") || 0),
-    priorityScore: Number(form.get("flavourPriority") || 0),
-    upsellScore: Number(form.get("flavourUpsell") || 0),
-    marginScore: Number(form.get("flavourMargin") || 0),
-    popularityScore: Number(form.get("flavourPopularity") || 0),
-    stockStatus: form.get("flavourStatus") === "sold_out" ? "sold_out" : "in_stock"
-  };
-  upsertById(state.flavours, payload);
-  saveState();
-  resetFlavourForm();
-  renderAll();
-  renderBrowse();
-}
-
-function handleMoodSave(event) {
-  event.preventDefault();
-  const form = new FormData(elements.moodForm);
-  const payload = {
-    id: editingIds.mood || slugify(form.get("moodLabel")),
-    label: form.get("moodLabel"),
-    icon: form.get("moodIcon"),
-    order: Number(form.get("moodOrder") || 1),
-    active: form.get("moodActive") === "true"
-  };
-  upsertById(state.moods, payload);
-  saveState();
-  elements.moodForm.reset();
-  editingIds.mood = "";
-  renderAll();
-  renderWizardChoices();
-}
-
-function handleOccasionSave(event) {
-  event.preventDefault();
-  const form = new FormData(elements.occasionForm);
-  const payload = {
-    id: editingIds.occasion || slugify(form.get("occasionLabel")),
-    label: form.get("occasionLabel"),
-    icon: form.get("occasionIcon"),
-    order: Number(form.get("occasionOrder") || 1),
-    active: form.get("occasionActive") === "true"
-  };
-  upsertById(state.occasions, payload);
-  saveState();
-  elements.occasionForm.reset();
-  editingIds.occasion = "";
-  renderAll();
-  renderWizardChoices();
-}
-
-function handleToppingSave(event) {
-  event.preventDefault();
-  const form = new FormData(elements.toppingForm);
-  const payload = {
-    id: editingIds.topping || slugify(form.get("toppingName")),
-    toppingName: form.get("toppingName"),
-    description: form.get("toppingDescription"),
-    priceAddOn: Number(form.get("toppingPrice") || 0),
-    compatibilityTags: parseTags(form.get("toppingCompatibility")),
-    dietaryTags: parseTags(form.get("toppingDietary")),
-    status: form.get("toppingStatus"),
-    image: "",
-    upsellPriority: Number(form.get("toppingUpsell") || 0),
-    stockStatus: "in_stock"
-  };
-  upsertById(state.toppings, payload);
-  saveState();
-  elements.toppingForm.reset();
-  editingIds.topping = "";
-  renderAll();
-}
-
-function handleRuleSave(event) {
-  event.preventDefault();
-  const form = new FormData(elements.ruleForm);
-  const payload = {
-    id: editingIds.rule || slugify(form.get("ruleName")),
-    name: form.get("ruleName"),
-    mood: form.get("ruleMood"),
-    occasion: form.get("ruleOccasion"),
-    weather: form.get("ruleWeather"),
-    recommendedBase: form.get("ruleBaseType"),
-    includeTags: parseTags(form.get("ruleIncludeTags")),
-    excludeTags: parseTags(form.get("ruleExcludeTags")),
-    toppingDirection: [],
-    why: "",
-    examples: [],
-    weightBoost: Number(form.get("ruleWeight") || 0),
-    enabled: form.get("ruleEnabled") === "true",
-    note: form.get("ruleNote")
-  };
-  upsertById(state.rules, payload);
-  saveState();
-  elements.ruleForm.reset();
-  editingIds.rule = "";
-  renderAll();
-}
-
-function handleWeightsSave(event) {
-  event.preventDefault();
-  const form = new FormData(elements.weightsForm);
-  state.weights = {
-    mood: Number(form.get("weightMood") || 0),
-    preference: Number(form.get("weightPreference") || 0),
-    occasion: Number(form.get("weightOccasion") || 0),
-    weather: Number(form.get("weightWeather") || 0),
-    priority: Number(form.get("weightPriority") || 0),
-    upsell: Number(form.get("weightUpsell") || 0),
-    popularity: Number(form.get("weightPopularity") || 0),
-    margin: Number(form.get("weightMargin") || 0)
-  };
-  saveState();
-  renderAll();
-}
-
-function resetFlavourForm() {
-  editingIds.flavour = "";
-  elements.flavourForm.reset();
-  elements.flavourForm.querySelector("#flavourPrice").value = "8.50";
-  elements.flavourForm.querySelector("#flavourPriority").value = "50";
-  elements.flavourForm.querySelector("#flavourUpsell").value = "50";
-  elements.flavourForm.querySelector("#flavourMargin").value = "50";
-  elements.flavourForm.querySelector("#flavourPopularity").value = "50";
-}
-
-function upsertById(collection, payload) {
-  const index = collection.findIndex((item) => item.id === payload.id);
-  if (index >= 0) {
-    collection[index] = { ...collection[index], ...payload };
-  } else {
-    collection.push(payload);
-  }
-}
-
-function removeById(collection, id) {
-  const index = collection.findIndex((item) => item.id === id);
-  if (index >= 0) {
-    collection.splice(index, 1);
-  }
+    .replace(/[^a-z0-9]+/g, "");
 }
 
 function escapeHtml(value) {
@@ -410,808 +1279,4 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function tableText(value) {
-  return escapeHtml(value || "—");
-}
-
-function renderAdminTable(target, columns, rows, emptyMessage) {
-  if (!rows.length) {
-    target.innerHTML = `<div class="table-empty">${escapeHtml(emptyMessage)}</div>`;
-    return;
-  }
-
-  const head = columns.map((column) => `<th scope="col">${escapeHtml(column.label)}</th>`).join("");
-  const body = rows
-    .map((row) => {
-      const cells = columns
-        .map((column) => `<td data-label="${escapeHtml(column.label)}">${column.render(row)}</td>`)
-        .join("");
-      return `<tr>${cells}</tr>`;
-    })
-    .join("");
-
-  target.innerHTML = `
-    <div class="admin-table-shell">
-      <table class="admin-table">
-        <thead>
-          <tr>${head}</tr>
-        </thead>
-        <tbody>${body}</tbody>
-      </table>
-    </div>`;
-}
-
-function tableText(value) {
-  return escapeHtml(value || "N/A");
-}
-
-function renderFlavourList() {
-  renderAdminTable(
-    elements.flavourList,
-    [
-      {
-        label: "Flavour",
-        render: (flavour) => `
-          <div class="table-title-cell">
-            <strong>${escapeHtml(flavour.flavourName)}</strong>
-            <span>${tableText(flavour.description)}</span>
-          </div>`
-      },
-      {
-        label: "Type",
-        render: (flavour) => `<span class="table-pill">${tableText(flavour.productType)}</span>`
-      },
-      {
-        label: "Status",
-        render: (flavour) => `<span class="table-pill ${flavour.status === "active" ? "is-positive" : ""}">${tableText(flavour.status.replace("_", " "))}</span>`
-      },
-      {
-        label: "Base Price",
-        render: (flavour) => `$${Number(flavour.basePrice || 0).toFixed(2)}`
-      },
-      {
-        label: "Taste Tags",
-        render: (flavour) => tableText((flavour.baseTasteTags || []).join(", "))
-      },
-      {
-        label: "Scores",
-        render: (flavour) => `
-          <div class="table-stack">
-            <span>P ${Number(flavour.priorityScore || 0)}</span>
-            <span>U ${Number(flavour.upsellScore || 0)}</span>
-            <span>M ${Number(flavour.marginScore || 0)}</span>
-            <span>Pop ${Number(flavour.popularityScore || 0)}</span>
-          </div>`
-      },
-      {
-        label: "Actions",
-        render: (flavour) => `
-          <div class="table-actions">
-            <button class="ghost-button small-button" data-edit-flavour="${escapeHtml(flavour.id)}" type="button">Edit</button>
-            <button class="ghost-button small-button" data-delete-flavour="${escapeHtml(flavour.id)}" type="button">Delete</button>
-          </div>`
-      }
-    ],
-    state.flavours,
-    "No flavours configured yet."
-  );
-
-  elements.flavourList.querySelectorAll("[data-edit-flavour]").forEach((button) => {
-    button.addEventListener("click", () => populateFlavourForm(button.dataset.editFlavour));
-  });
-  elements.flavourList.querySelectorAll("[data-delete-flavour]").forEach((button) => {
-    button.addEventListener("click", () => {
-      removeById(state.flavours, button.dataset.deleteFlavour);
-      saveState();
-      renderAll();
-      renderBrowse();
-    });
-  });
-}
-
-function populateFlavourForm(id) {
-  const flavour = state.flavours.find((item) => item.id === id);
-  if (!flavour) {
-    return;
-  }
-  editingIds.flavour = id;
-  elements.flavourForm.querySelector("#flavourName").value = flavour.flavourName;
-  elements.flavourForm.querySelector("#flavourType").value = flavour.productType;
-  elements.flavourForm.querySelector("#flavourStatus").value = flavour.status;
-  elements.flavourForm.querySelector("#flavourPrice").value = flavour.basePrice;
-  elements.flavourForm.querySelector("#flavourDescription").value = flavour.description;
-  elements.flavourForm.querySelector("#flavourImage").value = flavour.activeImage || "";
-  elements.flavourForm.querySelector("#flavourTasteTags").value = (flavour.baseTasteTags || []).join(", ");
-  elements.flavourForm.querySelector("#flavourDietaryTags").value = (flavour.dietaryTags || []).join(", ");
-  elements.flavourForm.querySelector("#flavourPriority").value = flavour.priorityScore;
-  elements.flavourForm.querySelector("#flavourUpsell").value = flavour.upsellScore;
-  elements.flavourForm.querySelector("#flavourMargin").value = flavour.marginScore;
-  elements.flavourForm.querySelector("#flavourPopularity").value = flavour.popularityScore;
-}
-
-function renderSimpleList(target, collection, type) {
-  const sorted = collection.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
-  renderAdminTable(
-    target,
-    [
-      {
-        label: type === "mood" ? "Mood" : "Occasion",
-        render: (item) => `
-          <div class="table-title-cell">
-            <strong>${escapeHtml(item.label)}</strong>
-            <span>${tableText(item.icon)}</span>
-          </div>`
-      },
-      {
-        label: "Display Order",
-        render: (item) => `${Number(item.order || 0)}`
-      },
-      {
-        label: "Status",
-        render: (item) => {
-          const active = item.active !== false;
-          return `<span class="table-pill ${active ? "is-positive" : ""}">${active ? "active" : "inactive"}</span>`;
-        }
-      },
-      {
-        label: "Actions",
-        render: (item) => `
-          <div class="table-actions">
-            <button class="ghost-button small-button" data-edit-${type}="${escapeHtml(item.id)}" type="button">Edit</button>
-            <button class="ghost-button small-button" data-delete-${type}="${escapeHtml(item.id)}" type="button">Delete</button>
-          </div>`
-      }
-    ],
-    sorted,
-    `No ${type}s configured yet.`
-  );
-}
-
-function renderMoodList() {
-  renderSimpleList(elements.moodList, state.moods, "mood");
-  elements.moodList.querySelectorAll("[data-edit-mood]").forEach((button) => {
-    button.addEventListener("click", () => populateSimpleForm("mood", button.dataset.editMood));
-  });
-  elements.moodList.querySelectorAll("[data-delete-mood]").forEach((button) => {
-    button.addEventListener("click", () => {
-      removeById(state.moods, button.dataset.deleteMood);
-      saveState();
-      renderAll();
-      renderWizardChoices();
-    });
-  });
-}
-
-function renderOccasionList() {
-  renderSimpleList(elements.occasionList, state.occasions, "occasion");
-  elements.occasionList.querySelectorAll("[data-edit-occasion]").forEach((button) => {
-    button.addEventListener("click", () => populateSimpleForm("occasion", button.dataset.editOccasion));
-  });
-  elements.occasionList.querySelectorAll("[data-delete-occasion]").forEach((button) => {
-    button.addEventListener("click", () => {
-      removeById(state.occasions, button.dataset.deleteOccasion);
-      saveState();
-      renderAll();
-      renderWizardChoices();
-    });
-  });
-}
-
-function renderToppingList() {
-  renderAdminTable(
-    elements.toppingList,
-    [
-      {
-        label: "Topping",
-        render: (topping) => `
-          <div class="table-title-cell">
-            <strong>${escapeHtml(topping.toppingName)}</strong>
-            <span>${tableText(topping.description)}</span>
-          </div>`
-      },
-      {
-        label: "Add-on",
-        render: (topping) => `$${Number(topping.priceAddOn || 0).toFixed(2)}`
-      },
-      {
-        label: "Status",
-        render: (topping) => `<span class="table-pill ${topping.status === "active" ? "is-positive" : ""}">${tableText(topping.status)}</span>`
-      },
-      {
-        label: "Compatibility",
-        render: (topping) => tableText((topping.compatibilityTags || []).join(", "))
-      },
-      {
-        label: "Dietary Tags",
-        render: (topping) => tableText((topping.dietaryTags || []).join(", "))
-      },
-      {
-        label: "Upsell",
-        render: (topping) => `${Number(topping.upsellPriority || 0)}`
-      },
-      {
-        label: "Actions",
-        render: (topping) => `
-          <div class="table-actions">
-            <button class="ghost-button small-button" data-edit-topping="${escapeHtml(topping.id)}" type="button">Edit</button>
-            <button class="ghost-button small-button" data-delete-topping="${escapeHtml(topping.id)}" type="button">Delete</button>
-          </div>`
-      }
-    ],
-    state.toppings,
-    "No toppings configured yet."
-  );
-
-  elements.toppingList.querySelectorAll("[data-edit-topping]").forEach((button) => {
-    button.addEventListener("click", () => populateToppingForm(button.dataset.editTopping));
-  });
-  elements.toppingList.querySelectorAll("[data-delete-topping]").forEach((button) => {
-    button.addEventListener("click", () => {
-      removeById(state.toppings, button.dataset.deleteTopping);
-      saveState();
-      renderAll();
-    });
-  });
-}
-
-function renderRuleList() {
-  renderAdminTable(
-    elements.ruleList,
-    [
-      {
-        label: "Rule",
-        render: (rule) => `
-          <div class="table-title-cell">
-            <strong>${escapeHtml(rule.name)}</strong>
-            <span>${tableText(rule.note || rule.why)}</span>
-          </div>`
-      },
-      {
-        label: "Enabled",
-        render: (rule) => `<span class="table-pill ${rule.enabled ? "is-positive" : ""}">${rule.enabled ? "enabled" : "disabled"}</span>`
-      },
-      {
-        label: "Base",
-        render: (rule) => tableText(rule.recommendedBase || "any")
-      },
-      {
-        label: "Include Tags",
-        render: (rule) => tableText((rule.includeTags || []).join(", "))
-      },
-      {
-        label: "Exclude Tags",
-        render: (rule) => tableText((rule.excludeTags || []).join(", "))
-      },
-      {
-        label: "Weight",
-        render: (rule) => `${Number(rule.weightBoost || 0) >= 0 ? "+" : ""}${Number(rule.weightBoost || 0)}`
-      },
-      {
-        label: "Actions",
-        render: (rule) => `
-          <div class="table-actions">
-            <button class="ghost-button small-button" data-edit-rule="${escapeHtml(rule.id)}" type="button">Edit</button>
-            <button class="ghost-button small-button" data-delete-rule="${escapeHtml(rule.id)}" type="button">Delete</button>
-          </div>`
-      }
-    ],
-    state.rules,
-    "No recommendation rules configured yet."
-  );
-
-  elements.ruleList.querySelectorAll("[data-edit-rule]").forEach((button) => {
-    button.addEventListener("click", () => populateRuleForm(button.dataset.editRule));
-  });
-  elements.ruleList.querySelectorAll("[data-delete-rule]").forEach((button) => {
-    button.addEventListener("click", () => {
-      removeById(state.rules, button.dataset.deleteRule);
-      saveState();
-      renderAll();
-    });
-  });
-}
-
-function populateSimpleForm(type, id) {
-  const collection = type === "mood" ? state.moods : state.occasions;
-  const item = collection.find((entry) => entry.id === id);
-  if (!item) {
-    return;
-  }
-  editingIds[type] = id;
-  const form = type === "mood" ? elements.moodForm : elements.occasionForm;
-  form.querySelector(`#${type}Label`).value = item.label;
-  form.querySelector(`#${type}Icon`).value = item.icon;
-  form.querySelector(`#${type}Order`).value = item.order;
-  form.querySelector(`#${type}Active`).value = String(item.active);
-}
-
-function populateToppingForm(id) {
-  const topping = state.toppings.find((entry) => entry.id === id);
-  if (!topping) {
-    return;
-  }
-  editingIds.topping = id;
-  elements.toppingForm.querySelector("#toppingName").value = topping.toppingName;
-  elements.toppingForm.querySelector("#toppingPrice").value = topping.priceAddOn;
-  elements.toppingForm.querySelector("#toppingDescription").value = topping.description;
-  elements.toppingForm.querySelector("#toppingCompatibility").value = (topping.compatibilityTags || []).join(", ");
-  elements.toppingForm.querySelector("#toppingDietary").value = (topping.dietaryTags || []).join(", ");
-  elements.toppingForm.querySelector("#toppingUpsell").value = topping.upsellPriority;
-  elements.toppingForm.querySelector("#toppingStatus").value = topping.status;
-}
-
-function populateRuleForm(id) {
-  const rule = state.rules.find((entry) => entry.id === id);
-  if (!rule) {
-    return;
-  }
-  editingIds.rule = id;
-  elements.ruleForm.querySelector("#ruleName").value = rule.name;
-  elements.ruleForm.querySelector("#ruleEnabled").value = String(rule.enabled);
-  elements.ruleForm.querySelector("#ruleMood").value = rule.mood || "";
-  elements.ruleForm.querySelector("#ruleOccasion").value = rule.occasion || "";
-  elements.ruleForm.querySelector("#ruleWeather").value = rule.weather || "";
-  elements.ruleForm.querySelector("#ruleBaseType").value = rule.recommendedBase || "";
-  elements.ruleForm.querySelector("#ruleIncludeTags").value = (rule.includeTags || []).join(", ");
-  elements.ruleForm.querySelector("#ruleExcludeTags").value = (rule.excludeTags || []).join(", ");
-  elements.ruleForm.querySelector("#ruleWeight").value = rule.weightBoost;
-  elements.ruleForm.querySelector("#ruleNote").value = rule.note || "";
-}
-
-function renderWeights() {
-  elements.weightsForm.querySelector("#weightMood").value = state.weights.mood;
-  elements.weightsForm.querySelector("#weightPreference").value = state.weights.preference;
-  elements.weightsForm.querySelector("#weightOccasion").value = state.weights.occasion;
-  elements.weightsForm.querySelector("#weightWeather").value = state.weights.weather;
-  elements.weightsForm.querySelector("#weightPriority").value = state.weights.priority;
-  elements.weightsForm.querySelector("#weightUpsell").value = state.weights.upsell;
-  elements.weightsForm.querySelector("#weightPopularity").value = state.weights.popularity;
-  elements.weightsForm.querySelector("#weightMargin").value = state.weights.margin;
-}
-
-function renderRulePreview() {
-  const preview = state.rules
-    .filter((rule) => rule.enabled)
-    .map((rule) => `${rule.name}: mood=${rule.mood || "*"}, occasion=${rule.occasion || "*"}, weather=${rule.weather || "*"}, include=[${(rule.includeTags || []).join(", ")}], exclude=[${(rule.excludeTags || []).join(", ")}], +${rule.weightBoost}`)
-    .join("\n");
-  elements.rulePreview.textContent = preview || "No enabled rules.";
-}
-
-function renderWizardChoices() {
-  renderChoiceButtons(
-    document.querySelector("#occasionChoices"),
-    state.occasions.filter((item) => item.active).sort((a, b) => a.order - b.order).map((item) => ({ value: item.id, label: item.label })),
-    "occasion"
-  );
-  renderChoiceButtons(
-    document.querySelector("#moodChoices"),
-    state.moods.filter((item) => item.active).sort((a, b) => a.order - b.order).map((item) => ({ value: item.id, label: item.label })),
-    "mood"
-  );
-  renderChoiceButtons(
-    document.querySelector("#tasteChoices"),
-    choiceMaps.taste.map((value) => ({ value, label: value })),
-    "tastePreference"
-  );
-  renderChoiceButtons(
-    document.querySelector("#dietaryChoices"),
-    choiceMaps.dietary.map((value) => ({ value, label: value })),
-    "dietaryNeeds",
-    true
-  );
-  renderChoiceButtons(
-    document.querySelector("#weatherChoices"),
-    choiceMaps.weather.map((value) => ({ value, label: value })),
-    "weather"
-  );
-  renderChoiceButtons(
-    document.querySelector("#toppingIntentChoices"),
-    choiceMaps.toppingsWanted.map((value) => ({ value, label: value })),
-    "wantsToppings"
-  );
-}
-
-function renderChoiceButtons(container, items, field, multiSelect = false) {
-  container.innerHTML = items
-    .map(
-      (item) => `
-        <button class="choice-pill ${isChoiceSelected(field, item.value, multiSelect) ? "is-selected" : ""}" data-choice-field="${field}" data-choice-value="${item.value}" data-choice-multi="${multiSelect}" type="button">
-          ${item.label}
-        </button>`
-    )
-    .join("");
-
-  container.querySelectorAll("[data-choice-field]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const fieldName = button.dataset.choiceField;
-      const value = button.dataset.choiceValue;
-      const isMulti = button.dataset.choiceMulti === "true";
-      toggleWizardChoice(fieldName, value, isMulti);
-      renderWizardChoices();
-    });
-  });
-}
-
-function isChoiceSelected(field, value, multiSelect) {
-  const current = wizardState.answers[field];
-  if (multiSelect) {
-    return Array.isArray(current) && current.includes(value);
-  }
-  return current === value;
-}
-
-function toggleWizardChoice(field, value, multiSelect) {
-  if (multiSelect) {
-    const current = Array.isArray(wizardState.answers[field]) ? wizardState.answers[field] : [];
-    wizardState.answers[field] = current.includes(value)
-      ? current.filter((item) => item !== value)
-      : [...current, value];
-  } else {
-    wizardState.answers[field] = value;
-  }
-  saveWizardState();
-}
-
-function showWizardStep(step) {
-  wizardState.step = Math.max(1, Math.min(6, step));
-  saveWizardState();
-  elements.wizardSteps.forEach((panel) => {
-    panel.classList.toggle("hidden", Number(panel.dataset.step) !== wizardState.step);
-  });
-  elements.wizardStepLabel.textContent = `Step ${wizardState.step} of 6`;
-  elements.wizardBackButton.disabled = wizardState.step === 1;
-  elements.wizardNextButton.textContent = wizardState.step === 6 ? "Show recommendations" : "Next";
-}
-
-function handleWizardBack() {
-  showWizardStep(wizardState.step - 1);
-}
-
-function handleWizardNext() {
-  if (wizardState.step === 6) {
-    runGuideRecommendations();
-    return;
-  }
-  showWizardStep(wizardState.step + 1);
-}
-
-function skipWizardField(field) {
-  if (field === "dietary") {
-    wizardState.answers.dietaryNeeds = [];
-  } else if (field === "weather") {
-    wizardState.answers.weather = "anytime";
-  } else if (field === "toppingsWanted") {
-    wizardState.answers.wantsToppings = "no";
-  } else if (field === "taste") {
-    wizardState.answers.tastePreference = "surprise me";
-  } else {
-    delete wizardState.answers[field];
-  }
-  saveWizardState();
-  handleWizardNext();
-}
-
-function resetWizard() {
-  wizardState = { step: 1, answers: {} };
-  saveWizardState();
-  renderWizardChoices();
-  showWizardStep(1);
-  setMode("guide");
-}
-
-function buildCriteriaFromWizard() {
-  return {
-    mood: wizardState.answers.mood || "",
-    occasion: wizardState.answers.occasion || "",
-    tastePreference: wizardState.answers.tastePreference || "surprise me",
-    dietaryNeeds: (wizardState.answers.dietaryNeeds || []).filter((item) => item !== "none" && item !== "contains caffeine"),
-    weather: wizardState.answers.weather || "anytime",
-    wantsToppings: wizardState.answers.wantsToppings === "yes"
-  };
-}
-
-function buildSession(criteria, results, debug, mode) {
-  const session = {
-    id: `session-${Date.now()}`,
-    mode,
-    mood: criteria.mood || "",
-    occasion: criteria.occasion || "",
-    tastePreference: criteria.tastePreference || "",
-    weather: criteria.weather || "",
-    dietaryNeeds: criteria.dietaryNeeds || [],
-    results: results.map((entry) => entry.flavour.id),
-    createdAt: new Date().toISOString()
-  };
-  state.sessions.push(session);
-  state.analyticsEvents.push({
-    type: "recommendation_generated",
-    mode,
-    mood: criteria.mood || "",
-    occasion: criteria.occasion || "",
-    topFlavour: results[0]?.flavour.flavourName || "",
-    createdAt: session.createdAt
-  });
-  saveState();
-  currentResults = results;
-  currentDebug = debug;
-  lastCriteria = criteria;
-  renderRecommendations(mode, criteria, results, debug);
-  renderAll();
-}
-
-function runGuideRecommendations() {
-  const criteria = buildCriteriaFromWizard();
-  const recommendation = recommendFlavours(state, criteria, { limit: 5 });
-  buildSession(criteria, recommendation.results, recommendation.debug, "guide");
-}
-
-function handleSurpriseRun(event) {
-  event.preventDefault();
-  const form = new FormData(elements.surpriseForm);
-  const criteria = {
-    mood: "",
-    occasion: "",
-    tastePreference: "surprise me",
-    dietaryNeeds: form.get("surpriseDietary") === "none" ? [] : [form.get("surpriseDietary")],
-    weather: form.get("surpriseWeather"),
-    wantsToppings: true
-  };
-  const recommendation = recommendFlavours(state, criteria, { limit: 3, upsellMode: true });
-  buildSession(criteria, recommendation.results, recommendation.debug, "surprise");
-}
-
-function renderBrowse() {
-  const form = new FormData(elements.browseForm);
-  const selectedType = form.get("browseType");
-  const dietary = form.get("browseDietary");
-  const filtered = state.flavours.filter((flavour) => {
-    const typeOk = selectedType === "all" || flavour.productType === selectedType;
-    const dietaryOk = dietary === "none" || (flavour.dietaryTags || []).includes(dietary);
-    return typeOk && dietaryOk && flavour.status !== "inactive";
-  });
-
-  elements.browseList.innerHTML = filtered
-    .map(
-      (flavour) => `
-        <article class="catalog-card">
-          <div>
-            <span class="result-label">${flavour.productType}</span>
-            <h3>${flavour.flavourName}</h3>
-            <p>${flavour.description}</p>
-            <p class="price-line">$${Number(flavour.basePrice).toFixed(2)} · ${flavour.status.replace("_", " ")}</p>
-          </div>
-          <div class="item-actions">
-            <button class="secondary-button small-button" data-browse-recommend="${flavour.id}" type="button">Recommend around this</button>
-            <button class="ghost-button small-button" data-browse-cart="${flavour.id}" type="button">Add to cart</button>
-          </div>
-        </article>`
-    )
-    .join("");
-
-  elements.browseList.querySelectorAll("[data-browse-recommend]").forEach((button) => {
-    button.addEventListener("click", () => runBrowseRecommendations(button.dataset.browseRecommend));
-  });
-  elements.browseList.querySelectorAll("[data-browse-cart]").forEach((button) => {
-    button.addEventListener("click", () => addToCart(button.dataset.browseCart, []));
-  });
-}
-
-function runBrowseRecommendations(anchorId = "") {
-  const flavour = state.flavours.find((item) => item.id === anchorId);
-  const criteria = {
-    mood: flavour ? flavour.moodTags?.[0] || "" : "",
-    occasion: flavour ? flavour.occasionTags?.[0] || "" : "",
-    tastePreference: flavour ? flavour.baseTasteTags?.[0] || "surprise me" : "surprise me",
-    dietaryNeeds: [],
-    weather: flavour ? flavour.weatherSuitability?.[0] || "anytime" : "anytime",
-    wantsToppings: true
-  };
-  const recommendation = recommendFlavours(state, criteria, { limit: 3, upsellMode: true });
-  buildSession(criteria, recommendation.results, recommendation.debug, "know");
-}
-
-function rerollCurrentMode() {
-  if (activeMode === "surprise") {
-    elements.surpriseForm.requestSubmit();
-  } else if (activeMode === "guide") {
-    runGuideRecommendations();
-  } else {
-    runBrowseRecommendations();
-  }
-}
-
-function renderRecommendations(mode, criteria, results, debug) {
-  elements.resultsSummary.innerHTML = `
-    <p class="result-label">Score context</p>
-    <p>${mode === "guide" ? "Guided selection" : mode === "surprise" ? "Surprise run" : "Browse assist"} generated ${results.length} result(s). Weather: ${criteria.weather || "anytime"}. Dietary filters: ${(criteria.dietaryNeeds || []).join(", ") || "none"}.</p>
-  `;
-
-  elements.resultCards.innerHTML = results
-    .map((entry, index) => {
-      const toppingLines = entry.toppingSuggestions
-        .map((topping) => `${topping.toppingName} (+$${Number(topping.priceAddOn).toFixed(2)})`)
-        .join(", ");
-      const basePrice = Number(entry.flavour.basePrice).toFixed(2);
-      const suggestedTop = entry.toppingSuggestions[0];
-      const total = suggestedTop ? entry.flavour.basePrice + suggestedTop.priceAddOn : entry.flavour.basePrice;
-      const reason = [
-        entry.scoreBreakdown.directMood.note,
-        entry.scoreBreakdown.directOccasion.note,
-        entry.scoreBreakdown.preference.note,
-        entry.scoreBreakdown.rules.note
-      ]
-        .filter(Boolean)
-        .join(" · ");
-
-      return `
-        <article class="result-card ${index === 0 ? "is-top" : ""}">
-          <div class="result-card-head">
-            <div>
-              <span class="result-label">#${index + 1} · ${entry.flavour.productType}</span>
-              <h3>${entry.flavour.flavourName}</h3>
-              <p>${entry.flavour.description}</p>
-            </div>
-            <div class="score-chip">${entry.totalScore} pts</div>
-          </div>
-          <div class="result-grid">
-            <article>
-              <span class="result-label">Why recommended</span>
-              <strong>Recommended because ${reason}.</strong>
-            </article>
-            <article>
-              <span class="result-label">Toppings</span>
-              <strong>${toppingLines || "No topping suggestion"}</strong>
-            </article>
-            <article>
-              <span class="result-label">Pricing</span>
-              <strong>Base $${basePrice}${suggestedTop ? ` · Top total $${Number(total).toFixed(2)}` : ""}</strong>
-            </article>
-            <article>
-              <span class="result-label">Score breakdown</span>
-              <strong>${formatBreakdown(entry.scoreBreakdown)}</strong>
-            </article>
-          </div>
-          <div class="item-actions">
-            <button class="primary-button small-button" data-add-cart="${entry.flavour.id}" data-add-top="${suggestedTop ? suggestedTop.id : ""}" type="button">Add to cart</button>
-            <button class="ghost-button small-button" data-compare="${entry.flavour.id}" type="button">Compare</button>
-          </div>
-        </article>`;
-    })
-    .join("");
-
-  elements.resultCards.querySelectorAll("[data-add-cart]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const toppingId = button.dataset.addTop ? [button.dataset.addTop] : [];
-      addToCart(button.dataset.addCart, toppingId);
-    });
-  });
-  elements.resultCards.querySelectorAll("[data-compare]").forEach((button) => {
-    button.addEventListener("click", () => compareFlavour(button.dataset.compare));
-  });
-
-  const top = results[0];
-  if (top) {
-    elements.heroSignature.textContent = top.flavour.flavourName;
-    elements.heroDescription.textContent = top.flavour.description;
-    elements.heroScore.textContent = `${top.totalScore} pts`;
-  }
-
-  currentDebug = debug;
-}
-
-function formatBreakdown(breakdown) {
-  return [
-    `Mood ${Math.round(breakdown.directMood.score)}`,
-    `Taste ${Math.round(breakdown.preference.score)}`,
-    `Occasion ${Math.round(breakdown.directOccasion.score)}`,
-    `Weather ${Math.round(breakdown.directWeather.score)}`,
-    `Rules ${Math.round(breakdown.rules.score)}`
-  ].join(" · ");
-}
-
-function addToCart(flavourId, toppingIds) {
-  const flavour = state.flavours.find((item) => item.id === flavourId);
-  if (!flavour) {
-    return;
-  }
-  const toppings = state.toppings.filter((item) => toppingIds.includes(item.id));
-  const total = flavour.basePrice + toppings.reduce((sum, topping) => sum + Number(topping.priceAddOn || 0), 0);
-  state.cart.push({
-    id: `cart-${Date.now()}`,
-    flavourId,
-    toppings: toppings.map((item) => item.id),
-    total,
-    createdAt: new Date().toISOString()
-  });
-  state.analyticsEvents.push({
-    type: "add_to_cart",
-    topFlavour: flavour.flavourName,
-    createdAt: new Date().toISOString()
-  });
-  saveState();
-  elements.cartStatus.textContent = `${flavour.flavourName} added to cart for $${Number(total).toFixed(2)}.`;
-  renderAll();
-}
-
-function compareFlavour(flavourId) {
-  const compared = currentResults.find((entry) => entry.flavour.id === flavourId);
-  if (!compared) {
-    return;
-  }
-  elements.resultsSummary.innerHTML = `
-    <p class="result-label">Compare flavour</p>
-    <p>${compared.flavour.flavourName}: ${compared.flavour.description} Score details: ${formatBreakdown(compared.scoreBreakdown)}.</p>
-  `;
-}
-
-function handleFeedbackSubmit(event) {
-  event.preventDefault();
-  if (!currentResults[0]) {
-    return;
-  }
-  const form = new FormData(elements.feedbackForm);
-  state.feedback.push({
-    id: `feedback-${Date.now()}`,
-    flavourId: currentResults[0].flavour.id,
-    moodLift: form.get("feedbackMoodLift"),
-    comment: form.get("feedbackComment"),
-    createdAt: new Date().toISOString()
-  });
-  saveState();
-  elements.cartStatus.textContent = "Feedback captured for the latest recommendation.";
-  elements.feedbackForm.reset();
-  renderAll();
-}
-
-function handleShare() {
-  if (!currentResults[0]) {
-    return;
-  }
-  const top = currentResults[0];
-  const payload = `${top.flavour.flavourName} from Aumici - ${top.flavour.description}`;
-  state.shareEvents.push({
-    id: `share-${Date.now()}`,
-    flavourId: top.flavour.id,
-    payload,
-    createdAt: new Date().toISOString()
-  });
-  saveState();
-
-  if (navigator.share) {
-    navigator.share({ title: "Aumici creation", text: payload }).catch(() => {});
-  } else if (navigator.clipboard) {
-    navigator.clipboard.writeText(payload).catch(() => {});
-  }
-  elements.cartStatus.textContent = "Share intent recorded for analytics.";
-  renderAll();
-}
-
-function renderMetrics(target, analytics) {
-  target.innerHTML = `
-    <article class="summary-card"><span class="result-label">Recommendation count</span><strong>${analytics.recommendationCount}</strong><p>Generated recommendation sessions.</p></article>
-    <article class="summary-card"><span class="result-label">Conversion rate</span><strong>${analytics.conversionRate}%</strong><p>Recommendation to add-to-cart.</p></article>
-    <article class="summary-card"><span class="result-label">Topping attach</span><strong>${analytics.toppingAttachRate}%</strong><p>Cart lines with toppings.</p></article>
-    <article class="summary-card"><span class="result-label">Mood lift</span><strong>${analytics.satisfactionRate}%</strong><p>Feedback marked yes.</p></article>
-    <article class="summary-card"><span class="result-label">Share attempts</span><strong>${analytics.shareAttempts}</strong><p>Recorded share clicks.</p></article>
-    <article class="summary-card"><span class="result-label">Most recommended</span><strong>${topKey(analytics.mostRecommendedFlavour)}</strong><p>Top flavour in recommendation events.</p></article>
-  `;
-}
-
-function renderAdminAnalytics() {
-  renderMetrics(elements.adminAnalyticsGrid, summarizeAnalytics(state));
-}
-
-function renderPublicAnalytics() {
-  renderMetrics(elements.analyticsGrid, summarizeAnalytics(state));
-}
-
-function topKey(record) {
-  const entries = Object.entries(record || {});
-  if (!entries.length) {
-    return "None yet";
-  }
-  entries.sort((a, b) => b[1] - a[1]);
-  return `${entries[0][0]} (${entries[0][1]})`;
 }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Aumici POS - Flavour Decision Assistant</title>
+    <title>Aumici Workbook Viewer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,563 +16,147 @@
     <div class="page-shell">
       <header class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Aumici POS Module</p>
-          <h1>Flavour Decision Assistant</h1>
+          <p class="eyebrow">Aumici Ordering Wizard</p>
+          <h1>Find Your Best Gelato Match</h1>
           <p class="lede">
-            A handphone-first recommendation module for gelato, sorbet, and granita. Customers can
-            browse directly, get guided in under twenty seconds, or let the system surprise them,
-            while admins control flavours, moods, toppings, prices, and recommendation rules.
+            Choose a quick browse if you already know what you want, or let the assistant guide you to a flavour and
+            topping combination that fits your mood.
           </p>
           <div class="hero-chips">
-            <span>Seeded from decision matrix spreadsheet</span>
-            <span>Admin-editable rules and weights</span>
-            <span>Transparent scoring and analytics</span>
+            <span>Simple 2-step choice</span>
+            <span>Live flavour availability</span>
+            <span>Top 5 tailored suggestions</span>
           </div>
         </div>
         <aside class="hero-panel">
-          <p class="panel-label">Module Snapshot</p>
-          <h2 id="heroSignature">Golden Hour Sonata</h2>
-          <p id="heroDescription">
-            Mango sorbet and vanilla bean gelato with toasted coconut and pistachio dust for a hot
-            afternoon mood lift.
-          </p>
-          <div class="stat-grid">
-            <div>
-              <span>Mode</span>
-              <strong id="heroMode">Guide me to choose</strong>
-            </div>
-            <div>
-              <span>Top score</span>
-              <strong id="heroScore">92 pts</strong>
-            </div>
-          </div>
+          <p class="panel-label">Now serving</p>
+          <h2 id="workbookTitle">Loading workbook...</h2>
+          <p id="workbookPath">Preparing the live menu and recommendation assistant.</p>
         </aside>
       </header>
 
-      <section class="summary-grid">
-        <article class="summary-card">
-          <span class="result-label">Architecture</span>
-          <strong>Standalone browser prototype</strong>
-          <p id="architectureSummary">
-            Frontend is plain HTML, CSS, and ES modules. Persistence is browser localStorage.
-          </p>
-        </article>
-        <article class="summary-card">
-          <span class="result-label">Rules source</span>
-          <strong>Spreadsheet seeded</strong>
-          <p id="rulesSummary">
-            Seed rules and flavour directions are translated from the attached decision matrix.
-          </p>
-        </article>
-        <article class="summary-card">
-          <span class="result-label">Current assumption</span>
-          <strong>No POS repo available</strong>
-          <p>
-            This module is implemented as an extensible standalone demo aligned to the requested
-            flows until the real repo is provided.
-          </p>
-        </article>
-      </section>
-
-      <section class="admin-shell">
-        <div class="admin-access">
+      <main class="builder-card workbook-viewer standalone-viewer">
+        <div class="section-heading">
           <div>
-            <p class="eyebrow">Admin Access</p>
-            <h2>Operations and rule control</h2>
-            <p class="admin-copy">
-              Only admin can manage flavours, moods, occasions, toppings, weights, and seed rules.
-              Customer ordering views stay friction-light and do not expose inventory controls.
-            </p>
+            <p class="eyebrow">Customer flow</p>
+            <h2>How would you like to order today?</h2>
+            <p class="viewer-source flow-intro">Start with a quick browse or let us guide you in a few taps.</p>
           </div>
-
-          <form id="adminLoginForm" class="admin-login">
-            <label class="field">
-              <span>Admin password</span>
-              <input id="adminPassword" name="adminPassword" type="password" placeholder="Enter admin password" />
-            </label>
-            <button class="secondary-button" type="submit">Admin login</button>
-            <button class="ghost-button hidden" id="adminLogoutButton" type="button">Log out</button>
-          </form>
-
-          <p id="adminStatus" class="admin-status">Admin panel locked.</p>
+          <div class="viewer-actions">
+            <button class="ghost-button" id="refreshEmbedButton" type="button">Refresh embed</button>
+            <button class="primary-button" id="openSheetButton" type="button">Open in Google Sheets</button>
+          </div>
         </div>
 
-        <section id="adminPanel" class="builder-card admin-panel hidden">
-          <div class="section-heading">
-            <p class="eyebrow">Admin Console</p>
-            <h2>Seed data, rules, and analytics controls</h2>
-          </div>
-
-          <div class="admin-tabs">
-            <button class="ghost-button admin-tab is-active" data-admin-tab="flavours" type="button">Flavours</button>
-            <button class="ghost-button admin-tab" data-admin-tab="moods" type="button">Moods</button>
-            <button class="ghost-button admin-tab" data-admin-tab="occasions" type="button">Occasions</button>
-            <button class="ghost-button admin-tab" data-admin-tab="toppings" type="button">Toppings</button>
-            <button class="ghost-button admin-tab" data-admin-tab="rules" type="button">Rules</button>
-            <button class="ghost-button admin-tab" data-admin-tab="weights" type="button">Weights</button>
-            <button class="ghost-button admin-tab" data-admin-tab="analytics" type="button">Analytics</button>
-          </div>
-
-          <div class="admin-tab-panel" data-admin-panel="flavours">
-            <div class="panel-grid">
-              <form id="flavourForm" class="builder-form admin-form">
-                <label class="field">
-                  <span>Flavour name</span>
-                  <input id="flavourName" name="flavourName" type="text" placeholder="Pistachio Supreme" />
-                </label>
-                <label class="field">
-                  <span>Product type</span>
-                  <select id="flavourType" name="flavourType">
-                    <option value="gelato">Gelato</option>
-                    <option value="sorbet">Sorbet</option>
-                    <option value="granita">Granita</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span>Status</span>
-                  <select id="flavourStatus" name="flavourStatus">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="seasonal">Seasonal</option>
-                    <option value="sold_out">Sold out</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span>Base price</span>
-                  <input id="flavourPrice" name="flavourPrice" type="number" min="0" step="0.01" value="8.50" />
-                </label>
-                <label class="field span-2">
-                  <span>Description</span>
-                  <textarea id="flavourDescription" name="flavourDescription" rows="2"></textarea>
-                </label>
-                <label class="field span-2">
-                  <span>Image URL or path</span>
-                  <input id="flavourImage" name="flavourImage" type="text" placeholder="Optional image path" />
-                </label>
-                <label class="field span-2">
-                  <span>Base taste tags</span>
-                  <input id="flavourTasteTags" name="flavourTasteTags" type="text" placeholder="creamy, nutty, indulgent" />
-                </label>
-                <label class="field span-2">
-                  <span>Dietary tags</span>
-                  <input id="flavourDietaryTags" name="flavourDietaryTags" type="text" placeholder="vegan, dairy-free" />
-                </label>
-                <label class="field">
-                  <span>Priority score</span>
-                  <input id="flavourPriority" name="flavourPriority" type="number" min="0" max="100" value="50" />
-                </label>
-                <label class="field">
-                  <span>Upsell score</span>
-                  <input id="flavourUpsell" name="flavourUpsell" type="number" min="0" max="100" value="50" />
-                </label>
-                <label class="field">
-                  <span>Margin score</span>
-                  <input id="flavourMargin" name="flavourMargin" type="number" min="0" max="100" value="50" />
-                </label>
-                <label class="field">
-                  <span>Popularity score</span>
-                  <input id="flavourPopularity" name="flavourPopularity" type="number" min="0" max="100" value="50" />
-                </label>
-                <button class="primary-button span-2" type="submit">Save flavour</button>
-              </form>
-              <div class="data-list-card">
-                <div class="list-header">
-                  <strong>Flavour master</strong>
-                  <button class="ghost-button small-button" id="flavourResetButton" type="button">Reset form</button>
-                </div>
-                <div id="flavourList" class="data-list"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="admin-tab-panel hidden" data-admin-panel="moods">
-            <div class="panel-grid">
-              <form id="moodForm" class="builder-form admin-form compact-form">
-                <label class="field">
-                  <span>Mood label</span>
-                  <input id="moodLabel" name="moodLabel" type="text" placeholder="Relaxed" />
-                </label>
-                <label class="field">
-                  <span>Icon or emoji</span>
-                  <input id="moodIcon" name="moodIcon" type="text" placeholder=":)" />
-                </label>
-                <label class="field">
-                  <span>Display order</span>
-                  <input id="moodOrder" name="moodOrder" type="number" min="1" value="1" />
-                </label>
-                <label class="field">
-                  <span>Status</span>
-                  <select id="moodActive" name="moodActive">
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
-                  </select>
-                </label>
-                <button class="primary-button span-2" type="submit">Save mood</button>
-              </form>
-              <div class="data-list-card">
-                <strong>Mood setup</strong>
-                <div id="moodList" class="data-list"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="admin-tab-panel hidden" data-admin-panel="occasions">
-            <div class="panel-grid">
-              <form id="occasionForm" class="builder-form admin-form compact-form">
-                <label class="field">
-                  <span>Occasion label</span>
-                  <input id="occasionLabel" name="occasionLabel" type="text" placeholder="Date night" />
-                </label>
-                <label class="field">
-                  <span>Icon or emoji</span>
-                  <input id="occasionIcon" name="occasionIcon" type="text" placeholder="*" />
-                </label>
-                <label class="field">
-                  <span>Display order</span>
-                  <input id="occasionOrder" name="occasionOrder" type="number" min="1" value="1" />
-                </label>
-                <label class="field">
-                  <span>Status</span>
-                  <select id="occasionActive" name="occasionActive">
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
-                  </select>
-                </label>
-                <button class="primary-button span-2" type="submit">Save occasion</button>
-              </form>
-              <div class="data-list-card">
-                <strong>Occasion setup</strong>
-                <div id="occasionList" class="data-list"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="admin-tab-panel hidden" data-admin-panel="toppings">
-            <div class="panel-grid">
-              <form id="toppingForm" class="builder-form admin-form">
-                <label class="field">
-                  <span>Topping name</span>
-                  <input id="toppingName" name="toppingName" type="text" placeholder="Pistachio dust" />
-                </label>
-                <label class="field">
-                  <span>Price add-on</span>
-                  <input id="toppingPrice" name="toppingPrice" type="number" min="0" step="0.01" value="1.00" />
-                </label>
-                <label class="field span-2">
-                  <span>Description</span>
-                  <textarea id="toppingDescription" name="toppingDescription" rows="2"></textarea>
-                </label>
-                <label class="field span-2">
-                  <span>Compatibility tags</span>
-                  <input id="toppingCompatibility" name="toppingCompatibility" type="text" placeholder="fruit, premium, crunchy" />
-                </label>
-                <label class="field span-2">
-                  <span>Dietary tags</span>
-                  <input id="toppingDietary" name="toppingDietary" type="text" placeholder="nut-free" />
-                </label>
-                <label class="field">
-                  <span>Upsell priority</span>
-                  <input id="toppingUpsell" name="toppingUpsell" type="number" min="0" max="100" value="50" />
-                </label>
-                <label class="field">
-                  <span>Status</span>
-                  <select id="toppingStatus" name="toppingStatus">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </label>
-                <button class="primary-button span-2" type="submit">Save topping</button>
-              </form>
-              <div class="data-list-card">
-                <strong>Topping setup</strong>
-                <div id="toppingList" class="data-list"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="admin-tab-panel hidden" data-admin-panel="rules">
-            <div class="panel-grid">
-              <form id="ruleForm" class="builder-form admin-form">
-                <label class="field">
-                  <span>Rule name</span>
-                  <input id="ruleName" name="ruleName" type="text" placeholder="Relaxed + hot weather" />
-                </label>
-                <label class="field">
-                  <span>Enabled</span>
-                  <select id="ruleEnabled" name="ruleEnabled">
-                    <option value="true">Enabled</option>
-                    <option value="false">Disabled</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span>Mood match</span>
-                  <input id="ruleMood" name="ruleMood" type="text" placeholder="relaxed" />
-                </label>
-                <label class="field">
-                  <span>Occasion match</span>
-                  <input id="ruleOccasion" name="ruleOccasion" type="text" placeholder="hot afternoon" />
-                </label>
-                <label class="field">
-                  <span>Weather match</span>
-                  <input id="ruleWeather" name="ruleWeather" type="text" placeholder="hot day" />
-                </label>
-                <label class="field">
-                  <span>Priority base type</span>
-                  <input id="ruleBaseType" name="ruleBaseType" type="text" placeholder="sorbet" />
-                </label>
-                <label class="field span-2">
-                  <span>Include tags</span>
-                  <input id="ruleIncludeTags" name="ruleIncludeTags" type="text" placeholder="fruity, refreshing" />
-                </label>
-                <label class="field span-2">
-                  <span>Exclude tags</span>
-                  <input id="ruleExcludeTags" name="ruleExcludeTags" type="text" placeholder="contains_caffeine" />
-                </label>
-                <label class="field">
-                  <span>Weight boost</span>
-                  <input id="ruleWeight" name="ruleWeight" type="number" min="0" max="100" value="10" />
-                </label>
-                <label class="field">
-                  <span>Admin override note</span>
-                  <input id="ruleNote" name="ruleNote" type="text" placeholder="Prioritize premium toppings" />
-                </label>
-                <button class="primary-button span-2" type="submit">Save rule</button>
-              </form>
-              <div class="data-list-card">
-                <div class="list-header">
-                  <strong>Recommendation rules</strong>
-                  <button class="ghost-button small-button" id="rulePreviewButton" type="button">Preview current rules</button>
-                </div>
-                <div id="ruleList" class="data-list"></div>
-                <div id="rulePreview" class="debug-box"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="admin-tab-panel hidden" data-admin-panel="weights">
-            <div class="panel-grid">
-              <form id="weightsForm" class="builder-form admin-form compact-form">
-                <label class="field">
-                  <span>Mood weight</span>
-                  <input id="weightMood" name="weightMood" type="number" min="0" max="100" />
-                </label>
-                <label class="field">
-                  <span>Preference weight</span>
-                  <input id="weightPreference" name="weightPreference" type="number" min="0" max="100" />
-                </label>
-                <label class="field">
-                  <span>Occasion weight</span>
-                  <input id="weightOccasion" name="weightOccasion" type="number" min="0" max="100" />
-                </label>
-                <label class="field">
-                  <span>Weather weight</span>
-                  <input id="weightWeather" name="weightWeather" type="number" min="0" max="100" />
-                </label>
-                <label class="field">
-                  <span>Priority weight</span>
-                  <input id="weightPriority" name="weightPriority" type="number" min="0" max="100" />
-                </label>
-                <label class="field">
-                  <span>Upsell weight</span>
-                  <input id="weightUpsell" name="weightUpsell" type="number" min="0" max="100" />
-                </label>
-                <label class="field">
-                  <span>Popularity weight</span>
-                  <input id="weightPopularity" name="weightPopularity" type="number" min="0" max="100" />
-                </label>
-                <label class="field">
-                  <span>Margin weight</span>
-                  <input id="weightMargin" name="weightMargin" type="number" min="0" max="100" />
-                </label>
-                <button class="primary-button span-2" type="submit">Save weights</button>
-              </form>
-              <div class="data-list-card">
-                <strong>Weight notes</strong>
-                <p class="admin-copy">
-                  Dietary compliance and sold-out filtering are treated as mandatory filters before
-                  scoring. Remaining weights drive ranking, tie-breaks, and explainability.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div class="admin-tab-panel hidden" data-admin-panel="analytics">
-            <div class="analytics-grid" id="adminAnalyticsGrid"></div>
-          </div>
-        </section>
-      </section>
-
-      <main class="layout customer-layout">
-        <section class="builder-card">
-          <div class="section-heading">
-            <p class="eyebrow">Customer Flow</p>
-            <h2>Choose how to order</h2>
-          </div>
-
-          <div class="mode-grid">
-            <button class="mode-card is-active" data-mode="know" type="button">
-              <span class="result-label">1</span>
-              <strong>I know what I want</strong>
-              <p>Browse flavours directly, filter fast, and add toppings.</p>
-            </button>
-            <button class="mode-card" data-mode="guide" type="button">
-              <span class="result-label">2</span>
-              <strong>Guide me to choose</strong>
-              <p>Answer quick mood, occasion, taste, and dietary questions.</p>
-            </button>
-            <button class="mode-card" data-mode="surprise" type="button">
-              <span class="result-label">3</span>
-              <strong>Surprise me</strong>
-              <p>Instantly get a smart pick that still respects constraints.</p>
-            </button>
-          </div>
-
-          <section class="customer-panel" data-customer-panel="know">
-            <div class="section-heading compact-heading">
-              <h3>Browse flavours</h3>
-            </div>
-            <form id="browseForm" class="builder-form compact-form">
-              <label class="field">
-                <span>Product type</span>
-                <select id="browseType" name="browseType">
-                  <option value="all">All</option>
-                  <option value="gelato">Gelato</option>
-                  <option value="sorbet">Sorbet</option>
-                  <option value="granita">Granita</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Dietary filter</span>
-                <select id="browseDietary" name="browseDietary">
-                  <option value="none">None</option>
-                  <option value="vegan">Vegan</option>
-                  <option value="dairy-free">Dairy-free</option>
-                  <option value="lactose intolerant friendly">Lactose intolerant friendly</option>
-                  <option value="nut-free">Nut-free</option>
-                  <option value="low added sugar">Low added sugar</option>
-                </select>
-              </label>
-            </form>
-            <div id="browseList" class="catalog-grid"></div>
-          </section>
-
-          <section class="customer-panel hidden" data-customer-panel="guide">
-            <div class="section-heading compact-heading">
-              <h3>Guided wizard</h3>
-              <p id="wizardStepLabel" class="admin-copy">Step 1 of 6</p>
-            </div>
-            <form id="guideForm" class="wizard-form">
-              <div class="wizard-step" data-step="1">
-                <p class="result-label">Occasion</p>
-                <div id="occasionChoices" class="choice-grid"></div>
-                <button class="ghost-button skip-button" data-skip="occasion" type="button">Skip</button>
-              </div>
-              <div class="wizard-step hidden" data-step="2">
-                <p class="result-label">Mood</p>
-                <div id="moodChoices" class="choice-grid"></div>
-                <button class="ghost-button skip-button" data-skip="mood" type="button">Skip</button>
-              </div>
-              <div class="wizard-step hidden" data-step="3">
-                <p class="result-label">Taste preference</p>
-                <div class="choice-grid" id="tasteChoices"></div>
-                <button class="ghost-button skip-button" data-skip="taste" type="button">Skip</button>
-              </div>
-              <div class="wizard-step hidden" data-step="4">
-                <p class="result-label">Dietary needs</p>
-                <div class="choice-grid multi-choice" id="dietaryChoices"></div>
-                <button class="ghost-button skip-button" data-skip="dietary" type="button">Skip</button>
-              </div>
-              <div class="wizard-step hidden" data-step="5">
-                <p class="result-label">Weather right now</p>
-                <div class="choice-grid" id="weatherChoices"></div>
-                <button class="ghost-button skip-button" data-skip="weather" type="button">Skip</button>
-              </div>
-              <div class="wizard-step hidden" data-step="6">
-                <p class="result-label">Would you like toppings?</p>
-                <div class="choice-grid" id="toppingIntentChoices"></div>
-                <button class="ghost-button skip-button" data-skip="toppingsWanted" type="button">Skip</button>
-              </div>
-              <div class="wizard-footer">
-                <button class="ghost-button" id="wizardBackButton" type="button">Back</button>
-                <button class="secondary-button" id="wizardRestartButton" type="button">Restart</button>
-                <button class="primary-button" id="wizardNextButton" type="button">Next</button>
-              </div>
-            </form>
-          </section>
-
-          <section class="customer-panel hidden" data-customer-panel="surprise">
-            <div class="section-heading compact-heading">
-              <h3>Surprise me</h3>
-            </div>
-            <form id="surpriseForm" class="builder-form compact-form">
-              <label class="field">
-                <span>Dietary guardrail</span>
-                <select id="surpriseDietary" name="surpriseDietary">
-                  <option value="none">None</option>
-                  <option value="vegan">Vegan</option>
-                  <option value="dairy-free">Dairy-free</option>
-                  <option value="nut-free">Nut-free</option>
-                  <option value="low added sugar">Low added sugar</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Weather</span>
-                <select id="surpriseWeather" name="surpriseWeather">
-                  <option value="anytime">Anytime</option>
-                  <option value="hot day">Hot day</option>
-                  <option value="rainy day">Rainy day</option>
-                </select>
-              </label>
-              <button class="primary-button span-2" type="submit">Surprise me now</button>
-            </form>
-          </section>
-        </section>
-
-        <section class="results-card">
-          <div class="section-heading">
-            <p class="eyebrow">Recommendation Results</p>
-            <h2>Top picks</h2>
-          </div>
-
-          <div id="resultsSummary" class="result-notes">
-            <p class="result-label">Score context</p>
-            <p>Results will appear here with reasoning, score breakdown, and pricing.</p>
-          </div>
-
-          <div id="resultCards" class="result-stack"></div>
-
-          <div class="cta-row">
-            <button class="secondary-button" id="rerollButton" type="button">Reroll</button>
-            <button class="ghost-button" id="askAnotherButton" type="button">Ask another question</button>
-          </div>
-
-          <div class="result-notes">
-            <p class="eyebrow">Cart and mood lift</p>
-            <p id="cartStatus">No recommendation added to cart yet.</p>
-          </div>
-
-          <form id="feedbackForm" class="builder-form compact-form">
-            <label class="field">
-              <span>Did this elevate your mood?</span>
-              <select id="feedbackMoodLift" name="feedbackMoodLift">
-                <option value="yes">Yes</option>
-                <option value="somewhat">Somewhat</option>
-                <option value="no">No</option>
-              </select>
+        <section class="wizard-block">
+          <p class="lede" id="helpPrompt">Choose one path to begin.</p>
+          <div class="engine-toggle" id="engineToggle">
+            <span class="engine-toggle-label">Decision mode</span>
+            <label class="switch" for="engineModeSwitch">
+              <span class="switch-copy">Local</span>
+              <input id="engineModeSwitch" type="checkbox" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span class="switch-copy">Online</span>
             </label>
-            <label class="field span-2">
-              <span>Optional comment</span>
-              <textarea id="feedbackComment" name="feedbackComment" rows="2"></textarea>
-            </label>
-            <button class="primary-button" type="submit">Submit feedback</button>
-            <button class="ghost-button" id="shareButton" type="button">Share creation</button>
-          </form>
+            <p class="viewer-source" id="engineModeHint">Local mode is active.</p>
+          </div>
+          <div class="mode-grid" id="startChoices"></div>
+        </section>
 
-          <div class="result-notes">
-            <p class="eyebrow">Analytics snapshot</p>
-            <div id="analyticsGrid" class="analytics-grid"></div>
+        <section class="wizard-block hidden" id="occasionStep">
+          <div class="compact-heading">
+            <p class="eyebrow">Question 2A</p>
+            <h2>What brings you here today?</h2>
+          </div>
+          <div class="field span-2 wizard-input-block">
+            <span>Tell us in your own words</span>
+            <textarea
+              id="occasionInput"
+              rows="3"
+              placeholder="Example: We are celebrating a birthday and want something fun to share."
+            ></textarea>
+          </div>
+          <div class="choice-grid multi-choice-grid" id="occasionOptions"></div>
+        </section>
+
+        <section class="wizard-block hidden" id="moodStep">
+          <div class="compact-heading">
+            <p class="eyebrow">Question 2B</p>
+            <h2>How are you feeling today?</h2>
+          </div>
+          <div class="field span-2 wizard-input-block">
+            <span>Tell us how you feel</span>
+            <textarea
+              id="moodInput"
+              rows="3"
+              placeholder="Example: I feel overheated and want something light and refreshing."
+            ></textarea>
+          </div>
+          <div class="choice-grid multi-choice-grid" id="moodOptions"></div>
+        </section>
+
+        <section class="wizard-block hidden" id="menuSection">
+          <div class="compact-heading">
+            <p class="eyebrow">Available menu</p>
+            <h2>Order from what is available</h2>
+          </div>
+          <div class="menu-tab-row" id="menuTabs">
+            <button class="menu-tab is-active" data-menu-type="gelato" type="button">Gelato</button>
+            <button class="menu-tab" data-menu-type="sorbet" type="button">Sorbet</button>
+            <button class="menu-tab" data-menu-type="granita" type="button">Granita</button>
+          </div>
+          <div class="menu-layout">
+            <div class="result-stack" id="menuGrid"></div>
+            <aside class="topping-panel">
+              <div class="compact-heading topping-heading">
+                <p class="eyebrow">Pick toppings</p>
+                <h2>Toppings</h2>
+              </div>
+              <p class="viewer-source" id="toppingSelectionMeta">Choose toppings to go with your dessert.</p>
+              <div class="topping-list" id="toppingList"></div>
+            </aside>
           </div>
         </section>
+
+        <section class="wizard-block hidden" id="recommendationSection">
+          <div class="compact-heading">
+            <p class="eyebrow">Recommended for you</p>
+            <h2>Your best five matches</h2>
+          </div>
+          <div class="save-creation-panel">
+            <div class="field">
+              <span>Your name</span>
+              <input id="customerNameInput" type="text" placeholder="Enter your name to remember your creations" />
+            </div>
+            <div class="field">
+              <span>Creation name</span>
+              <input id="creationNameInput" type="text" placeholder="Optional: Sunny citrus swirl" />
+            </div>
+            <p class="viewer-source save-note" id="saveCreationStatus">Save a recommendation to remember it on this browser next time.</p>
+          </div>
+          <p class="lede" id="recommendationLead"></p>
+          <p class="viewer-source" id="recommendationMeta"></p>
+          <div class="result-stack" id="recommendationGrid"></div>
+          <div class="saved-creations">
+            <div class="compact-heading">
+              <p class="eyebrow">My saved creations</p>
+              <h2>Saved for later</h2>
+            </div>
+            <div class="result-stack" id="savedCreationsList"></div>
+          </div>
+        </section>
+
+        <details class="sheet-embed-card menu-details">
+          <summary class="menu-summary">See the live menu sheet</summary>
+          <div class="menu-summary-copy">Use this if you want to review the full Google Sheet behind the app.</div>
+          <iframe
+            id="embeddedSheet"
+            class="sheet-embed-frame"
+            title="Aumici Google Sheet"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+          ></iframe>
+        </details>
       </main>
     </div>
 
